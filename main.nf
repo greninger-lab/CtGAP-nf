@@ -19,17 +19,17 @@ nextflow.enable.dsl = 2
 
 // Print pipeline header
 log.info """\
-    ═══════════════════════════════════════════════
+    ===============================================
        C t G A P - n f
        Chlamydia trachomatis Genome Assembly (Nextflow)
-    ═══════════════════════════════════════════════
+    ===============================================
     mode         : ${params.mode}
     input        : ${params.input_csv ?: params.indir}
     output       : ${params.outdir}
     organism     : ${params.organism}
     reference    : ${params.reference}
     host ref     : ${params.host_reference}
-    ═══════════════════════════════════════════════
+    ===============================================
     """.stripIndent()
 
 /*
