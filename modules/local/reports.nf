@@ -712,7 +712,7 @@ ENDHEADER
 
     # Genotype distribution (column 2)
     tail -n +2 ${summary_csv} | awk -F',' '{print \$2}' | grep -v '^\$' | sort | uniq -c | sort -rn | while read count geno; do
-        pct=\$(awk "BEGIN {printf \\"%.1f\\", (\$count / \$total) * 100}")
+        pct=\$(awk -v c="\$count" -v t="\$total" 'BEGIN {printf "%.1f", (c / t) * 100}')
         echo "  \$geno: \$count samples (\${pct}%)" >> ctgap_batch_summary.txt
     done
 
@@ -725,7 +725,7 @@ ENDMETHOD
 
     # Assembly method distribution (column 5)
     tail -n +2 ${summary_csv} | awk -F',' '{print \$5}' | grep -v '^\$' | sort | uniq -c | sort -rn | while read count method; do
-        pct=\$(awk "BEGIN {printf \\"%.1f\\", (\$count / \$total) * 100}")
+        pct=\$(awk -v c="\$count" -v t="\$total" 'BEGIN {printf "%.1f", (c / t) * 100}')
         echo "  \$method: \$count samples (\${pct}%)" >> ctgap_batch_summary.txt
     done
 
@@ -738,7 +738,7 @@ ENDPLASMID
 
     # Plasmid status distribution (column 10)
     tail -n +2 ${summary_csv} | awk -F',' '{print \$10}' | grep -v '^\$' | sort | uniq -c | sort -rn | while read count status; do
-        pct=\$(awk "BEGIN {printf \\"%.1f\\", (\$count / \$total) * 100}")
+        pct=\$(awk -v c="\$count" -v t="\$total" 'BEGIN {printf "%.1f", (c / t) * 100}')
         echo "  \$status: \$count samples (\${pct}%)" >> ctgap_batch_summary.txt
     done
 

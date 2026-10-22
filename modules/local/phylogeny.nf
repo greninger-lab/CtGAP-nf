@@ -26,14 +26,14 @@ process SKA_ALIGNMENT {
     # Build input list: sample_name<tab>fasta_path
     > input.list
     for fasta in assemblies/*; do
-        sample=\$(basename "\$fasta" | sed 's/\\.fasta\$//' | sed 's/\\.fa\$//')
+        sample=\$(basename "\$fasta" | sed 's/[.]fasta\$//' | sed 's/[.]fa\$//')
         echo -e "\$sample\\t\$fasta" >> input.list
     done
 
     # Add individual reference fastas from mount point if present
     if [ -d "${params.individual_refs}" ] && [ "\$(ls -A ${params.individual_refs} 2>/dev/null)" ]; then
         for fasta in ${params.individual_refs}/*; do
-            sample=\$(basename "\$fasta" | sed 's/\\.fasta\$//' | sed 's/\\.fa\$//')
+            sample=\$(basename "\$fasta" | sed 's/[.]fasta\$//' | sed 's/[.]fa\$//')
             echo -e "\$sample\\t\$fasta" >> input.list
         done
     fi

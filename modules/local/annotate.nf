@@ -28,9 +28,9 @@ process CHECK_ANNOTATION_COVERAGE {
     n50=\${n50:-0}
 
     # Calculate coverage percentage
-    coverage_pct=\$(awk "BEGIN {printf \\"%.1f\\", (\$n50 / ${ref_size}) * 100}")
+    coverage_pct=\$(awk -v n="\$n50" -v r="${ref_size}" 'BEGIN {printf "%.1f", (n / r) * 100}')
 
-    if awk "BEGIN {exit !(\$n50 / ${ref_size} * 100 >= ${min_coverage})}"; then
+    if awk -v n="\$n50" -v r="${ref_size}" -v m="${min_coverage}" 'BEGIN {exit !(n / r * 100 >= m)}'; then
         PASSES="true"
     else
         PASSES="false"
@@ -216,12 +216,12 @@ process ANNOTATION_COVERAGE_CHECK {
         n50=\${n50:-0}
 
         if [ "\$n50" -gt 0 ]; then
-            coverage_pct=\$(awk "BEGIN {printf \\"%.1f\\", (\$n50 / ${ref_size}) * 100}")
+            coverage_pct=\$(awk -v n="\$n50" -v r="${ref_size}" 'BEGIN {printf "%.1f", (n / r) * 100}')
         else
             coverage_pct="0.0"
         fi
 
-        passes=\$(awk "BEGIN {if (\$n50 / ${ref_size} * 100 >= ${min_coverage}) print \\"YES\\"; else print \\"NO\\"}")
+        passes=\$(awk -v n="\$n50" -v r="${ref_size}" -v m="${min_coverage}" 'BEGIN {if (n / r * 100 >= m) print "YES"; else print "NO"}')
 
         echo -e "\${sample}\\t\${n50}\\t\${coverage_pct}\\t\${passes}" >> coverage_check.tsv
     done
