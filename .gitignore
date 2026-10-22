@@ -1,0 +1,22 @@
+# Nextflow
+.nextflow/
+.nextflow.log*
+work/
+output/
+results/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Pipeline info (generated at runtime)
+pipeline_info/
+
+# Cache
+cache/
