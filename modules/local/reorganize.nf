@@ -120,7 +120,7 @@ for asm in sorted(Path("assemblies").glob("*")):
     
     # Pattern: denovo_{sample}.final or ref-denovo_{sample}.final
     import re
-    m = re.match(r"(?:denovo|ref-denovo)_(.+?)\.final", name)
+    m = re.match(r"(?:denovo|ref-denovo)_(.+?)[.]final", name)
     if m:
         sample_name = m.group(1)
     
