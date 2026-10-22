@@ -2,7 +2,7 @@
 
 ***Chlamydia trachomatis* Genome Assembly Pipeline**
 
-This is a **Nextflow DSL2 port** of [CtGAP v2.0](https://github.com/D-Dean-Lab/CtGAP/tree/main), originally implemented as a Snakemake workflow by the [D-Dean-Lab](https://github.com/D-Dean-Lab). The pipeline has been ported to Nextflow to run in our compute environment.
+This is a **Nextflow DSL2 adaptation** of [CtGAP v2.0](https://github.com/D-Dean-Lab/CtGAP/tree/main), originally implemented as a Snakemake workflow by the [D-Dean-Lab](https://github.com/D-Dean-Lab). The pipeline has been adapted to Nextflow to run in our compute environment with Docker containers on AWS Batch.
 
 > **Original repository:** <https://github.com/D-Dean-Lab/CtGAP>
 >
