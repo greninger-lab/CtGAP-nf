@@ -331,23 +331,5 @@ If running locally, use the `-profile local` to override database paths to local
 
 Check the per-sample PDF report for coverage statistics. Low input depth (<10x) affects assembly contiguity.
 
-### MLST database version mismatch
-
-If `claMLST` fails with an alembic migration error, the MLST databases on the mount point were created with a different pyMLST version than the container. Rebuild the databases using the container's pyMLST version:
-
-```bash
-docker run --rm -v /path/to/pubmlst:/db quay.io/biocontainers/pymlst:2.3.2--pyhdfd78af_0 \
-    bash -c "rm -rf /db/chlamydiales && claMLST create /db/chlamydiales --scheme chlamydiales"
-```
-
-### AMRFinderPlus version mismatch
-
-If Bakta fails with an AMRFinderPlus error, update the AMRFinderPlus database using the Bakta container:
-
-```bash
-docker run --rm -v /path/to/bakta_db:/db quay.io/biocontainers/bakta:1.12.2--pyhdfd78af_0 \
-    amrfinder_update --force_update --database /db/db-light/amrfinderplus-db
-```
-
 ---
 
