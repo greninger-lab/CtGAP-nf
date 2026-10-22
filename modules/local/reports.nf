@@ -488,15 +488,42 @@ process COMPREHENSIVE_REPORT {
             elements.append(Spacer(1, 0.1*inch))
 
             if status == "MIXED_WARNING":
-                dist_note = f" Distribution: {dist}." if dist != "N/A" else ""
-                elements.append(Paragraph(f'<b>Status:</b> <font color="#E74C3C">POSSIBLE MIXED INFECTION</font><br/>'
-                                          f'{het} heterozygous sites detected at intermediate allele frequencies.{dist_note}<br/>'
-                                          f'Interpret typing results with caution.', kv_style))
+                dist_text = ""
+                if dist == "GENOME-WIDE":
+                    dist_text = "<br/><br/><b>Distribution:</b> <font color='#27AE60'>GENOME-WIDE</font> - Variants are spread across the genome, consistent with true mixed infection."
+                elif dist == "LOCALIZED":
+                    dist_text = "<br/><br/><b>Distribution:</b> <font color='#F39C12'>LOCALIZED</font> - Variants are clustered in one region, could indicate recombination or localized artifact."
+
+                elements.append(Paragraph(
+                    f'<b>Status:</b> <font color="#E74C3C">POSSIBLE MIXED INFECTION</font><br/><br/>'
+                    f'<b>Interpretation:</b> This sample shows {het} genomic positions where sequencing reads '
+                    f'support two different alleles at intermediate frequencies. Since <i>C. trachomatis</i> is haploid, '
+                    f'this pattern suggests the presence of multiple distinct strains in the sample.{dist_text}<br/><br/>'
+                    f'<b>Recommendations:</b><br/>'
+                    f'&bull; Interpret typing results (genotype, MLST, Ct strain) with caution - they may represent a consensus<br/>'
+                    f'&bull; Consider that plasmid detection may be affected by strain mixture<br/>'
+                    f'&bull; Review clinical context for possible co-infection or reinfection', kv_style))
             elif status in ("SINGLE", "LOW_HET"):
-                elements.append(Paragraph(f'<b>Status:</b> <font color="#27AE60">SINGLE STRAIN</font><br/>'
-                                          f'Low heterozygosity ({het} sites) consistent with single strain.', kv_style))
+                elements.append(Paragraph(
+                    f'<b>Status:</b> <font color="#27AE60">SINGLE STRAIN (LOW HETEROZYGOSITY)</font><br/><br/>'
+                    f'<b>Interpretation:</b> This sample shows minimal heterozygosity ({het} sites), '
+                    f'consistent with a single <i>C. trachomatis</i> strain. Typing results can be interpreted '
+                    f'with normal confidence.', kv_style))
             else:
-                elements.append(Paragraph(f'<b>Status:</b> <font color="#F39C12">INCONCLUSIVE</font>', kv_style))
+                elements.append(Paragraph(
+                    f'<b>Status:</b> <font color="#F39C12">INCONCLUSIVE</font><br/><br/>'
+                    f'<b>Interpretation:</b> Mixed strain analysis could not determine a clear result.', kv_style))
+
+            # Methodology note
+            elements.append(Spacer(1, 0.1*inch))
+            method_note_style = ParagraphStyle('MethodNote', parent=styles['Normal'], fontSize=8,
+                                                textColor=colors.HexColor("#7F8C8D"), leftIndent=20)
+            elements.append(Paragraph(
+                '<b>Method:</b> Reads were mapped to the sample\'s main chromosome (largest contig) and variants called. '
+                'Heterozygous-like sites are positions where 15-85% of reads support an alternate allele. '
+                '<b>Quality filters:</b> Base quality &ge;20, minimum 2 reads on each strand (reduces sequencing errors '
+                'and strand bias artifacts). Analysis focuses on main chromosome only (excludes plasmid and small fragments). '
+                'In a haploid organism, sites passing these filters indicate multiple genomes.', method_note_style))
 
         # Footer
         elements.append(Spacer(1, 0.3*inch))
