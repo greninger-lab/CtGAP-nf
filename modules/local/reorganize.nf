@@ -279,7 +279,7 @@ readme_lines = [
     "## Organized Structure",
     "",
     "01_per_sample/     - Sample-specific outputs",
-    "   {sample}/",
+    "   <sample>/",
     "       assembly.fasta     - Best assembly",
     "       *_ctgap_report.pdf - Per-sample report",
     "       *.plasmid.fasta    - Plasmid assembly",

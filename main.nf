@@ -121,7 +121,7 @@ workflow {
     // ---- Build input channel from paired FASTQ files ----
     if (params.input_csv) {
         // CSV input with header row: sample,fastq_1,fastq_2
-        // fastq_2 is optional — if missing, inferred as single-end
+        // fastq_2 is optional -- if missing, inferred as single-end
         // This pipeline requires paired-end reads
         ch_reads = Channel
             .fromPath(params.input_csv, checkIfExists: true)

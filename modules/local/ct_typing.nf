@@ -8,7 +8,7 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-// CT_SKETCH_REFS removed — pre-built Mash sketch used directly
+// CT_SKETCH_REFS removed -- pre-built Mash sketch used directly
 // from mount point via params.ct_refs_mash_sketch
 
 /*

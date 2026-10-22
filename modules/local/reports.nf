@@ -444,7 +444,7 @@ process COMPREHENSIVE_REPORT {
                                       f"<b>Contiguous Assembly (N50):</b> {n50:,} bp<br/>"
                                       f"<b>Genome Coverage:</b> {genome_cov:.1f}%*", kv_style))
             if n50 > 1_060_000:
-                elements.append(Paragraph(f'<font color="#E74C3C"><b>⚠ QC FLAG:</b> N50 ({n50:,} bp) exceeds expected Ct genome size (&gt;1.06 Mb).</font>', kv_style))
+                elements.append(Paragraph(f'<font color="#E74C3C"><b>WARNING QC FLAG:</b> N50 ({n50:,} bp) exceeds expected Ct genome size (&gt;1.06 Mb).</font>', kv_style))
             elements.append(Paragraph('<font size=8 color="#7F8C8D">*N50 relative to standard C. trachomatis genome size (1.043 Mb)</font>', styles['Normal']))
 
         if kraken:
@@ -500,9 +500,9 @@ process COMPREHENSIVE_REPORT {
                     f'support two different alleles at intermediate frequencies. Since <i>C. trachomatis</i> is haploid, '
                     f'this pattern suggests the presence of multiple distinct strains in the sample.{dist_text}<br/><br/>'
                     f'<b>Recommendations:</b><br/>'
-                    f'&bull; Interpret typing results (genotype, MLST, Ct strain) with caution - they may represent a consensus<br/>'
-                    f'&bull; Consider that plasmid detection may be affected by strain mixture<br/>'
-                    f'&bull; Review clinical context for possible co-infection or reinfection', kv_style))
+                    f'- Interpret typing results (genotype, MLST, Ct strain) with caution - they may represent a consensus<br/>'
+                    f'- Consider that plasmid detection may be affected by strain mixture<br/>'
+                    f'- Review clinical context for possible co-infection or reinfection', kv_style))
             elif status in ("SINGLE", "LOW_HET"):
                 elements.append(Paragraph(
                     f'<b>Status:</b> <font color="#27AE60">SINGLE STRAIN (LOW HETEROZYGOSITY)</font><br/><br/>'

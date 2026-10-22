@@ -9,7 +9,7 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-// INDEX_REFERENCE_PLASMID removed — pre-built bt2 index used directly
+// INDEX_REFERENCE_PLASMID removed -- pre-built bt2 index used directly
 // from mount point via params.plasmid_bt2_prefix
 
 /*
@@ -840,5 +840,5 @@ process PLASMID_REPORT {
     """
 }
 
-// MAKE_PLASMID_BLASTDB removed — pre-built BLAST database used directly
+// MAKE_PLASMID_BLASTDB removed -- pre-built BLAST database used directly
 // from mount point via params.plasmid_blast_db_prefix
