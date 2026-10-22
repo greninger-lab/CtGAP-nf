@@ -81,7 +81,7 @@ All bioinformatics tools are provided via Docker containers specified in each pr
 | **Sequence tools** | seqkit | `quay.io/biocontainers/seqkit` |
 | **Sequence tools** | seqtk | `quay.io/biocontainers/seqtk` |
 | **Phylogenetics** | Augur (IQ-TREE) | `quay.io/biocontainers/augur` |
-| **Reporting** | Python 3 + pandas | `quay.io/biocontainers/pandas` |
+| **Reporting** | Python 3 + pandas + reportlab | `quay.io/jefffurlong/pandas-reportlab` |
 
 ### Databases (pre-provisioned on shared mount point)
 
