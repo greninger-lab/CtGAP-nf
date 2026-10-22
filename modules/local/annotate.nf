@@ -101,7 +101,7 @@ process ANNOTATION_SUMMARY {
     # Helper to extract a value from bakta txt output
     extract_val() {
         local file="\$1" pattern="\$2"
-        grep -i "\$pattern" "\$file" | head -1 | grep -oP '\\d[\\d,]*' | head -1 | tr -d ','
+        grep -i "\$pattern" "\$file" | head -1 | grep -oE '[0-9][0-9,]*' | head -1 | tr -d ','
     }
 
     # Build TSV
@@ -113,7 +113,7 @@ process ANNOTATION_SUMMARY {
         sample=\$(basename "\$txt" .txt)
         contigs=\$(extract_val "\$txt" "Sequences:")
         size_bp=\$(extract_val "\$txt" "Size:")
-        gc_pct=\$(grep -i "GC:" "\$txt" | head -1 | grep -oP '[\\d.]+' | head -1)
+        gc_pct=\$(grep -i "GC:" "\$txt" | head -1 | grep -oE '[0-9.]+' | head -1)
         cds=\$(extract_val "\$txt" "CDSs:")
         trnas=\$(extract_val "\$txt" "tRNAs:")
         rrnas=\$(extract_val "\$txt" "rRNAs:")
