@@ -132,7 +132,7 @@ process ANNOTATION_SUMMARY {
     # Build report
     cat > annotation_report.txt << ENDHEADER
 ======================================================================
-CtGAP GENOME ANNOTATION SUMMARY (Bakta)
+CtGAP-nf GENOME ANNOTATION SUMMARY (Bakta)
 ======================================================================
 Generated: \$(date '+%Y-%m-%d %H:%M:%S')
 Samples annotated: \$sample_count

@@ -308,7 +308,7 @@ process MIXED_DETECTION_SUMMARY {
 
     cat > mixed_detection_report.txt << ENDREPORT
 ======================================================================
-MIXED STRAIN DETECTION REPORT
+MIXED STRAIN DETECTION REPORT (CtGAP-nf)
 ======================================================================
 Generated: \$(date '+%Y-%m-%d %H:%M:%S')
 Total samples analyzed: \$total

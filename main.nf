@@ -20,8 +20,8 @@ nextflow.enable.dsl = 2
 // Print pipeline header
 log.info """\
     ═══════════════════════════════════════════════
-       C t G A P   -   N e x t f l o w
-       Chlamydia trachomatis Genome Assembly
+       C t G A P - n f
+       Chlamydia trachomatis Genome Assembly (Nextflow)
     ═══════════════════════════════════════════════
     mode         : ${params.mode}
     input        : ${params.input_csv ?: params.indir}
