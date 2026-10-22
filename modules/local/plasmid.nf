@@ -623,6 +623,15 @@ process PLASMID_REPORT {
     script:
     """
     #!/usr/bin/env python3
+    import subprocess
+    import sys
+
+    # Install reportlab if not present
+    try:
+        import reportlab
+    except ImportError:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "--quiet", "reportlab"])
+
     import os
     import re
     from pathlib import Path
@@ -630,18 +639,15 @@ process PLASMID_REPORT {
 
     sample = "${sample_id}"
 
-    try:
-        from reportlab.lib.pagesizes import letter
-        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-        from reportlab.lib.units import inch
-        from reportlab.lib import colors
-        from reportlab.lib.enums import TA_CENTER
-        from reportlab.platypus import (
-            SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
-        )
-        HAS_REPORTLAB = True
-    except ImportError:
-        HAS_REPORTLAB = False
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER
+    from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+    )
+    HAS_REPORTLAB = True
 
     # ---- Parse analysis file ----
     analysis_result = {"status": "UNKNOWN", "length": "", "circular": "", "deviation": ""}
@@ -837,22 +843,6 @@ process PLASMID_REPORT {
         )
         elements.append(Paragraph(method_text, styles['Normal']))
         doc.build(elements)
-    else:
-        # Fallback: plain text
-        with open("${sample_id}_plasmid_report.pdf", "w") as f:
-            f.write(f"CT Plasmid Analysis Report: {sample}\\n")
-            f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}\\n")
-            f.write("=" * 60 + "\\n\\n")
-            f.write(f"Status: {analysis_result['status']}\\n")
-            f.write(f"Length: {analysis_result.get('length', 'N/A')}\\n")
-            f.write(f"Circular: {analysis_result.get('circular', 'Unknown')}\\n\\n")
-            f.write(f"Mapped reads: {mapping.get('mapped_reads', 0):,}\\n")
-            f.write(f"Mapping rate: {mapping.get('mapped_percent', '0%')}\\n\\n")
-            if blast_hits:
-                f.write("Top BLAST hits:\\n")
-                for hit in blast_hits[:5]:
-                    f.write(f"  {hit['subject']}: {hit['identity']:.1f}% identity\\n")
-            f.write(f"\\nMLST: {mlst_result}\\n")
     """
 }
 

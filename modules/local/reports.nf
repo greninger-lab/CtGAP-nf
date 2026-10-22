@@ -43,6 +43,15 @@ process COMPREHENSIVE_REPORT {
     script:
     """
     #!/usr/bin/env python3
+    import subprocess
+    import sys
+
+    # Install reportlab if not present
+    try:
+        import reportlab
+    except ImportError:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "--quiet", "reportlab"])
+
     import json
     import csv
     import re
@@ -50,18 +59,15 @@ process COMPREHENSIVE_REPORT {
     from pathlib import Path
     from datetime import datetime
 
-    try:
-        from reportlab.lib.pagesizes import letter
-        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-        from reportlab.lib.units import inch
-        from reportlab.lib import colors
-        from reportlab.lib.enums import TA_CENTER, TA_LEFT
-        from reportlab.platypus import (
-            SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
-        )
-        HAS_REPORTLAB = True
-    except ImportError:
-        HAS_REPORTLAB = False
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+    )
+    HAS_REPORTLAB = True
 
     sample = "${sample_id}"
     CT_REFERENCE_SIZE = 1_043_000
@@ -507,53 +513,9 @@ process COMPREHENSIVE_REPORT {
         doc.build(elements)
 
     else:
-        # Fallback: plain text
+        # Fallback (should not reach here - reportlab is installed above)
         with open("${sample_id}_ctgap_report.pdf", "w") as f:
-            f.write(f"CtGAP Analysis Report: {sample}\\n")
-            f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\\n")
-            f.write("=" * 70 + "\\n\\n")
-            f.write("KEY FINDINGS\\n")
-            f.write(f"  ompA Genotype: {genovar} ({genovar_identity})\\n")
-            f.write(f"  Assembly Method: {method}\\n")
-            f.write(f"  Plasmid: {plasmid_summary}\\n\\n")
-            f.write("ASSEMBLY\\n")
-            f.write(f"  Total length: {quast.get('total_length', 'N/A'):,} bp\\n")
-            f.write(f"  Contigs: {quast.get('num_contigs', 'N/A')}\\n")
-            f.write(f"  N50: {quast.get('n50', 'N/A'):,} bp\\n")
-            f.write(f"  Gaps in main contig: {quast.get('main_contig_gaps', 0):,} bp\\n")
-            f.write(f"  GC: {quast.get('gc_percent', 'N/A')}%\\n\\n")
-            f.write("TYPING\\n")
-            f.write(f"  ompA Genotype: {genovar} ({genovar_identity})\\n")
-            if blast_ompa:
-                f.write(f"  Best BLAST hit: {blast_ompa[0]['subject']}\\n")
-            f.write(f"  MLST Chlamydiales: {mlst_chlam}\\n")
-            f.write(f"  MLST C. trachomatis: {mlst_ct}\\n\\n")
-            f.write("PLASMID\\n")
-            f.write(f"  Status: {plasmid['status']}\\n")
-            f.write(f"  Length: {plasmid.get('length', 'N/A')} bp\\n")
-            f.write(f"  Circular: {plasmid.get('circular', 'Unknown')}\\n")
-            if plasmid_blast:
-                f.write(f"  Best BLAST hit: {plasmid_blast[0]['subject']} ({plasmid_blast[0]['identity']:.1f}%)\\n")
-            f.write(f"  Plasmid MLST: {plasmid_mlst}\\n\\n")
-            if annotation:
-                f.write("ANNOTATION (Bakta)\\n")
-                f.write(f"  CDS: {annotation.get('cds', 'N/A')}\\n")
-                f.write(f"  tRNAs: {annotation.get('trnas', 'N/A')}\\n")
-                f.write(f"  Hypotheticals: {annotation.get('hypotheticals', 'N/A')}\\n\\n")
-            f.write("QC METRICS\\n")
-            if fastp:
-                f.write(f"  Raw reads: {fastp.get('raw_reads', 0):,}\\n")
-                f.write(f"  Filtered reads: {fastp.get('filtered_reads', 0):,}\\n")
-                f.write(f"  Q30 rate: {100*fastp.get('q30_rate', 0):.1f}%\\n")
-            n50 = quast.get("n50", 0)
-            genome_cov = (n50 / CT_REFERENCE_SIZE * 100) if n50 > 0 else 0
-            f.write(f"  Mean depth: {coverage.get('mean_depth', 0):.1f}x\\n")
-            f.write(f"  Genome coverage: {genome_cov:.1f}%\\n\\n")
-            if mixed:
-                f.write("MIXED STRAIN DETECTION\\n")
-                f.write(f"  Het sites: {mixed.get('het_sites', 0)}\\n")
-                f.write(f"  Mean AF: {mixed.get('mean_af', 'N/A')}\\n")
-                f.write(f"  Status: {mixed.get('status', 'Unknown')}\\n")
+            f.write(f"CtGAP Report: {sample} - reportlab installation failed\\n")
     """
 }
 
