@@ -33,7 +33,7 @@ process SELECT_BEST_ASSEMBLY {
     import shutil
 
     def parse_quast(tsv_path):
-        \"\"\"Parse QUAST report.tsv into a dict.\"\"\"
+        # Parse QUAST report.tsv into a dict
         metrics = {}
         with open(tsv_path) as f:
             reader = csv.reader(f, delimiter='\\t')
@@ -43,7 +43,7 @@ process SELECT_BEST_ASSEMBLY {
         return metrics
 
     def score_assembly(stats, expected_length=1040000):
-        \"\"\"Calculate quality score (0-100 scale) matching Snakemake select_best_assembly.py.\"\"\"
+        # Calculate quality score (0-100 scale) matching Snakemake select_best_assembly.py
         score = 0
 
         n50 = int(stats.get('N50', '0').replace(',', ''))

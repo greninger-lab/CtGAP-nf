@@ -575,7 +575,7 @@ process SUMMARY_CSV {
 
     # Index all files by sample name for efficient lookup
     def find_file_for_sample(directory, sample, extensions=None):
-        \"\"\"Find a file matching sample name in directory.\"\"\"
+        # Find a file matching sample name in directory
         for f in Path(directory).glob("*"):
             fname = f.name
             if sample in fname:
