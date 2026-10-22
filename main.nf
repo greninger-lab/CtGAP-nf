@@ -642,9 +642,11 @@ workflow {
     if (params.annotation_enabled) {
         ch_annotation_summary_file = ANNOTATION_SUMMARY.out.summary
         ch_annotation_report_file  = ANNOTATION_SUMMARY.out.report
+        ch_annotation_coverage_file = ANNOTATION_COVERAGE_CHECK.out.coverage_check
     } else {
         ch_annotation_summary_file = Channel.fromPath("${projectDir}/assets/NO_FILE", checkIfExists: false).ifEmpty(file('NO_ANNOTATION_SUMMARY'))
         ch_annotation_report_file  = Channel.fromPath("${projectDir}/assets/NO_FILE", checkIfExists: false).ifEmpty(file('NO_ANNOTATION_REPORT'))
+        ch_annotation_coverage_file = Channel.fromPath("${projectDir}/assets/NO_FILE", checkIfExists: false).ifEmpty(file('NO_ANNOTATION_COVERAGE'))
     }
 
     // Mixed detection outputs (conditional)
@@ -680,6 +682,7 @@ workflow {
         ch_alignment_summaries,
         ch_annotation_summary_file,
         ch_annotation_report_file,
+        ch_annotation_coverage_file,
         ch_mixed_summary_file,
         ch_mixed_report_file
     )

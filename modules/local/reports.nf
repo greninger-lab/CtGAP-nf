@@ -15,7 +15,7 @@ process COMPREHENSIVE_REPORT {
     tag "${sample_id}"
     label 'process_low'
 
-    container "quay.io/biocontainers/pandas:2.2.1"
+    container "quay.io/jefffurlong/pandas-reportlab"
 
     publishDir "${params.outdir}/${sample_id}/reports", mode: 'copy'
 
@@ -45,13 +45,7 @@ process COMPREHENSIVE_REPORT {
     #!/usr/bin/env python3
     import subprocess
     import sys
-
-    # Install reportlab if not present
-    try:
-        import reportlab
-    except ImportError:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "--quiet", "reportlab"])
-
+    import reportlab
     import json
     import csv
     import re

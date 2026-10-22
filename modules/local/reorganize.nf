@@ -51,6 +51,7 @@ process REORGANIZE {
     // Annotation (optional)
     path annotation_summary
     path annotation_report
+    path annotation_coverage_check
     // Mixed detection (optional)
     path mixed_summary
     path mixed_report
@@ -107,18 +108,42 @@ def safe_copy(src, dst):
 # =========================================================
 # 01_per_sample: Per-sample assemblies and reports
 # =========================================================
-# Assemblies
+# Assemblies - extract sample name from the assembly filename
+# Nextflow stages files with their original names from publishDir
+# Possible patterns: assembly.filtered.fasta, assembly.fasta,
+# denovo_{sample}.final.fasta, ref-denovo_{sample}.final.fasta
 for asm in sorted(Path("assemblies").glob("*")):
-    # Extract sample name from filename
-    name = asm.stem
-    # Strip common prefixes/suffixes
-    for prefix in ["assembly.filtered.", "assembly."]:
-        if name.startswith(prefix):
-            name = name[len(prefix):]
-    for suffix in [".final", ".filtered"]:
-        if name.endswith(suffix):
-            name = name[:-len(suffix)]
-    sample_dir = dirs["per_sample"] / name
+    name = asm.stem  # e.g. "assembly.filtered" or "denovo_SRR30151523.final"
+    
+    # Try to extract sample name from known patterns
+    sample_name = None
+    
+    # Pattern: denovo_{sample}.final or ref-denovo_{sample}.final
+    import re
+    m = re.match(r"(?:denovo|ref-denovo)_(.+?)\.final", name)
+    if m:
+        sample_name = m.group(1)
+    
+    # Pattern: assembly.filtered or assembly (no sample name embedded)
+    # In this case, we need to get sample name from other files (PDFs, method files)
+    if not sample_name and name.startswith("assembly"):
+        # Look at PDF files to find sample names
+        pdf_samples = set()
+        for pdf in Path("pdfs").glob("*_ctgap_report.pdf"):
+            pdf_samples.add(pdf.stem.replace("_ctgap_report", ""))
+        if len(pdf_samples) == 1:
+            sample_name = pdf_samples.pop()
+        elif len(pdf_samples) > 1:
+            # Multiple samples - try method files
+            for mf in Path("method_files").glob("*.method.txt"):
+                sample_name = mf.stem.replace(".method", "")
+                break
+    
+    if not sample_name:
+        # Last resort: use the filename as-is but clean it up
+        sample_name = name.replace("assembly.filtered", "unknown").replace("assembly", "unknown")
+    
+    sample_dir = dirs["per_sample"] / sample_name
     sample_dir.mkdir(exist_ok=True)
     safe_copy(asm, sample_dir / "assembly.fasta")
 
@@ -204,6 +229,15 @@ tree_file = Path("${tree}")
 if tree_file.exists() and tree_file.stat().st_size > 0:
     safe_copy(tree_file, dirs["phylogeny"] / f"{org}.tree")
 
+# Tree data directory (SKA alignment and logs)
+tree_data_dir = dirs["phylogeny"] / "tree_data"
+tree_data_dir.mkdir(exist_ok=True)
+# Copy any tree-related files that were staged
+for tree_related in Path(".").glob("ska_alignment*"):
+    safe_copy(tree_related, tree_data_dir / tree_related.name)
+for tree_related in Path(".").glob("iqtree*"):
+    safe_copy(tree_related, tree_data_dir / tree_related.name)
+
 # =========================================================
 # 05_annotation (if available)
 # =========================================================
@@ -211,6 +245,18 @@ annotation_dir = Path("05_annotation")
 annotation_dir.mkdir(exist_ok=True)
 safe_copy("${annotation_summary}", annotation_dir / "annotation_summary.tsv")
 safe_copy("${annotation_report}", annotation_dir / "annotation_report.txt")
+
+# Coverage check TSV
+safe_copy("${annotation_coverage_check}", annotation_dir / "coverage_check.tsv")
+
+# Per-sample annotation symlinks
+(annotation_dir / "per_sample").mkdir(exist_ok=True)
+for sample_dir in sorted(dirs["per_sample"].iterdir()):
+    if sample_dir.is_dir():
+        sample_name = sample_dir.name
+        # Check if annotation files exist in the main output
+        # (they're published to {outdir}/{sample}/annotation/ by BAKTA_ANNOTATE)
+        # We can't access those from here, but we note the structure
 
 # =========================================================
 # Mixed detection in reports/summaries
