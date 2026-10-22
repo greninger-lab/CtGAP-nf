@@ -519,7 +519,7 @@ process COMPREHENSIVE_REPORT {
             method_note_style = ParagraphStyle('MethodNote', parent=styles['Normal'], fontSize=8,
                                                 textColor=colors.HexColor("#7F8C8D"), leftIndent=20)
             elements.append(Paragraph(
-                '<b>Method:</b> Reads were mapped to the sample\'s main chromosome (largest contig) and variants called. '
+                '<b>Method:</b> Reads were mapped to the samples main chromosome (largest contig) and variants called. '
                 'Heterozygous-like sites are positions where 15-85% of reads support an alternate allele. '
                 '<b>Quality filters:</b> Base quality &ge;20, minimum 2 reads on each strand (reduces sequencing errors '
                 'and strand bias artifacts). Analysis focuses on main chromosome only (excludes plasmid and small fragments). '

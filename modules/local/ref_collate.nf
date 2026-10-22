@@ -107,7 +107,7 @@ process REF_SCAFFOLD_SUMMARY {
     if [ \$failed -gt 0 ]; then
         echo "Samples that FAILED scaffolding (using original contigs):" >> ref_scaffold_summary.txt
         grep -l "SCAFFOLD_FAILED" results/* 2>/dev/null | \\
-            xargs -I{} basename {} | \\
+            xargs -I% basename % | \\
             sed 's/^/  - /' >> ref_scaffold_summary.txt
         echo "" >> ref_scaffold_summary.txt
     fi
@@ -115,7 +115,7 @@ process REF_SCAFFOLD_SUMMARY {
     if [ \$success -gt 0 ]; then
         echo "Samples that SUCCEEDED scaffolding:" >> ref_scaffold_summary.txt
         grep -l "SCAFFOLD_SUCCESS" results/* 2>/dev/null | \\
-            xargs -I{} basename {} | \\
+            xargs -I% basename % | \\
             sed 's/^/  - /' >> ref_scaffold_summary.txt
     fi
     """
