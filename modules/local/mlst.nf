@@ -60,13 +60,15 @@ process COLLATE_MLST {
     script:
     """
     # Collate generic MLST
-    head -1 generic/* | head -1 > best.mlst.generic.results.tsv
+    first_generic=\$(ls generic/* | head -1)
+    head -1 "\$first_generic" > best.mlst.generic.results.tsv
     for f in generic/*; do
         tail -n +2 "\$f" >> best.mlst.generic.results.tsv
     done
 
     # Collate CT MLST
-    head -1 ct/* | head -1 > best.mlst.ct.results.tsv
+    first_ct=\$(ls ct/* | head -1)
+    head -1 "\$first_ct" > best.mlst.ct.results.tsv
     for f in ct/*; do
         tail -n +2 "\$f" >> best.mlst.ct.results.tsv
     done

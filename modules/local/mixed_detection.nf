@@ -98,14 +98,14 @@ process MIXED_SAMTOOLS_SORT {
     tuple val(sample_id), path(main_contig), path(sam)
 
     output:
-    tuple val(sample_id), path(main_contig), path("${main_contig}.fai"), path("sorted.bam"), path("sorted.bam.bai"), emit: sorted
+    tuple val(sample_id), path(main_contig), path("${main_contig}.fai"), path("${sample_id}.sorted.bam"), path("${sample_id}.sorted.bam.bai"), emit: sorted
 
     script:
     """
     samtools view -bSh ${sam} | \\
-        samtools sort -@ ${task.cpus} -o sorted.bam
+        samtools sort -@ ${task.cpus} -o ${sample_id}.sorted.bam
 
-    samtools index sorted.bam
+    samtools index ${sample_id}.sorted.bam
 
     samtools faidx ${main_contig}
     """

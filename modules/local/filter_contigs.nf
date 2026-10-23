@@ -194,7 +194,10 @@ process FILTER_SUMMARY {
 
     for report in reports/*; do
         sample=\$(grep "^Sample:" "\$report" | head -1 | awk '{print \$2}')
-        [ -z "\$sample" ] && sample=\$(basename "\$report" .txt)
+        if [ -z "\$sample" ]; then
+            sample=\$(basename "\$report" .txt)
+            sample=\${sample%%.filter_report}
+        fi
         original=\$(grep "^Original size:" "\$report" | head -1 | awk '{print \$3}')
         filtered=\$(grep "^Filtered size:" "\$report" | head -1 | awk '{print \$3}')
         removed_bp=\$(grep "^Removed:" "\$report" | head -1 | awk '{print \$2}')

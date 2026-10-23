@@ -551,8 +551,9 @@ workflow {
         .join(ch_mixed_for_report)
 
     // Add method file by extracting sample_id from filename
+    // Method files are named {sample_id}.method.txt
     ch_method_tupled = ch_method_files.map { f ->
-        def name = f.name.replace('.method.txt', '')
+        def name = f.name.toString().replace('.method.txt', '')
         tuple(name, f)
     }
 

@@ -118,30 +118,35 @@ for asm in sorted(Path("assemblies").glob("*")):
     # Try to extract sample name from known patterns
     sample_name = None
     
-    # Pattern: denovo_{sample}.final or ref-denovo_{sample}.final
     import re
-    m = re.match(r"(?:denovo|ref-denovo)_(.+?)[.]final", name)
+    # Pattern: {sample}.assembly.filtered
+    m = re.match(r"(.+?)[.]assembly[.]filtered", name)
     if m:
         sample_name = m.group(1)
     
-    # Pattern: assembly.filtered or assembly (no sample name embedded)
-    # In this case, we need to get sample name from other files (PDFs, method files)
-    if not sample_name and name.startswith("assembly"):
-        # Look at PDF files to find sample names
-        pdf_samples = set()
-        for pdf in Path("pdfs").glob("*_ctgap_report.pdf"):
-            pdf_samples.add(pdf.stem.replace("_ctgap_report", ""))
-        if len(pdf_samples) == 1:
-            sample_name = pdf_samples.pop()
-        elif len(pdf_samples) > 1:
-            # Multiple samples - try method files
-            for mf in Path("method_files").glob("*.method.txt"):
-                sample_name = mf.stem.replace(".method", "")
+    # Pattern: {sample}.assembly
+    if not sample_name:
+        m = re.match(r"(.+?)[.]assembly", name)
+        if m:
+            sample_name = m.group(1)
+    
+    # Pattern: denovo_{sample}.final or ref-denovo_{sample}.final
+    if not sample_name:
+        m = re.match(r"(?:denovo|ref-denovo)_(.+?)[.]final", name)
+        if m:
+            sample_name = m.group(1)
+    
+    # Fallback: use method files to find sample names
+    if not sample_name:
+        for mf in sorted(Path("method_files").glob("*.method.txt")):
+            candidate = mf.stem.replace(".method", "")
+            if candidate in asm.name:
+                sample_name = candidate
                 break
     
     if not sample_name:
-        # Last resort: use the filename as-is but clean it up
-        sample_name = name.replace("assembly.filtered", "unknown").replace("assembly", "unknown")
+        # Last resort: use the filename stem
+        sample_name = name
     
     sample_dir = dirs["per_sample"] / sample_name
     sample_dir.mkdir(exist_ok=True)

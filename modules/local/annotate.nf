@@ -209,6 +209,7 @@ process ANNOTATION_COVERAGE_CHECK {
 
     for report in quast_reports/*; do
         sample=\$(basename "\$report" .tsv)
+        sample=\${sample//.quast.report/}
         sample=\${sample//.report/}
         [ "\$sample" = "report" ] && sample="unknown"
 

@@ -22,7 +22,8 @@ process REF_COLLATE_COVERAGE {
 
     script:
     """
-    head -1 coverages/* | head -1 > ref-denovo.coverage.tsv
+    first_cov=\$(ls coverages/* | head -1)
+    head -1 "\$first_cov" > ref-denovo.coverage.tsv
     for f in coverages/*; do
         tail -n +2 "\$f" >> ref-denovo.coverage.tsv
     done

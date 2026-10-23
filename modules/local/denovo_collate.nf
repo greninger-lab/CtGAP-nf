@@ -22,7 +22,8 @@ process DENOVO_COLLATE_COVERAGE {
 
     script:
     """
-    head -1 coverages/* | head -1 > denovo.coverage.tsv
+    first_cov=\$(ls coverages/* | head -1)
+    head -1 "\$first_cov" > denovo.coverage.tsv
     for f in coverages/*; do
         tail -n +2 "\$f" >> denovo.coverage.tsv
     done
