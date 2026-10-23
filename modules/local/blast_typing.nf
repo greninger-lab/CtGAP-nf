@@ -27,14 +27,14 @@ process BLAST_OMPA {
 
     container "quay.io/biocontainers/blast:2.17.0--hb02a186_1"
 
-    publishDir "${params.outdir}/${sample_id}/best/blast", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/best/blast", mode: 'copy', pattern: '*.tab'
 
     input:
     tuple val(sample_id), path(assembly)
 
     output:
-    tuple val(sample_id), path("blast.ompa.tab"),      emit: primary
-    tuple val(sample_id), path("blast.secondary.tab"),  emit: secondary
+    tuple val(sample_id), path("${sample_id}.blast.ompa.tab"),      emit: primary
+    tuple val(sample_id), path("${sample_id}.blast.secondary.tab"),  emit: secondary
 
     script:
     """
@@ -46,17 +46,17 @@ process BLAST_OMPA {
         -use_index false \\
         -max_target_seqs 1 \\
         -outfmt 6 \\
-        -out blast.ompa.tab 2> blast.log || true
+        -out ${sample_id}.blast.ompa.tab 2> blast.log || true
 
     # Check for empty results
-    if [ ! -s blast.ompa.tab ]; then
+    if [ ! -s ${sample_id}.blast.ompa.tab ]; then
         echo "WARNING: No BLAST hits found for ${sample_id}" >> blast.log
-        touch blast.secondary.tab
+        touch ${sample_id}.blast.secondary.tab
         exit 0
     fi
 
     # Get top hit by bitscore (column 12)
-    top_hit=\$(sort -k12,12nr blast.ompa.tab | head -n1 | cut -f2)
+    top_hit=\$(sort -k12,12nr ${sample_id}.blast.ompa.tab | head -n1 | cut -f2)
 
     # Check if top hit matches A/B/Ba/C genotypes requiring secondary BLAST
     target_hits="A_DQ064279.1 B_M33636.1 Ba_DQ064282.1 C_AF352789.1"
@@ -69,10 +69,10 @@ process BLAST_OMPA {
             -use_index false \\
             -max_target_seqs 5 \\
             -outfmt 6 \\
-            -out blast.secondary.tab 2>> blast.log || true
+            -out ${sample_id}.blast.secondary.tab 2>> blast.log || true
     else
         echo "Top hit \$top_hit - no secondary BLAST needed" >> blast.log
-        touch blast.secondary.tab
+        touch ${sample_id}.blast.secondary.tab
     fi
     """
 }

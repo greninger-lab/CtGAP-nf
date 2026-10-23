@@ -62,16 +62,16 @@ process FILTER_APPLY_CONTIGS {
     container "quay.io/biocontainers/seqtk:1.5--h577a1d6_1"
 
 
-    publishDir "${params.outdir}/${sample_id}/best", mode: 'copy', pattern: '*.fasta'
-    publishDir "${params.outdir}/${sample_id}/best", mode: 'copy', pattern: 'filter_report.txt'
+    publishDir "${params.outdir}/${sample_id}/best", mode: 'copy', pattern: '*.assembly.*.fasta'
+    publishDir "${params.outdir}/${sample_id}/best", mode: 'copy', pattern: '*.filter_report.txt'
 
     input:
     tuple val(sample_id), path(assembly), path(fai), path(paf)
 
     output:
-    tuple val(sample_id), path("assembly.filtered.fasta"),  emit: assembly
-    path "assembly.unfiltered.fasta",                        emit: backup
-    path "filter_report.txt",                                emit: report
+    tuple val(sample_id), path("${sample_id}.assembly.filtered.fasta"),  emit: assembly
+    path "${sample_id}.assembly.unfiltered.fasta",                        emit: backup
+    path "${sample_id}.filter_report.txt",                   emit: report
 
     script:
     def min_identity = params.filter_min_identity
@@ -118,14 +118,14 @@ process FILTER_APPLY_CONTIGS {
 
     # Create filtered assembly
     if [ -s keep_contigs.txt ]; then
-        seqtk subseq ${assembly} keep_contigs.txt > assembly.filtered.fasta
+        seqtk subseq ${assembly} keep_contigs.txt > ${sample_id}.assembly.filtered.fasta
     else
-        cp ${assembly} assembly.filtered.fasta
+        cp ${assembly} ${sample_id}.assembly.filtered.fasta
         echo "WARNING: No contigs passed filtering - keeping original"
     fi
 
     # Backup original
-    cp ${assembly} assembly.unfiltered.fasta
+    cp ${assembly} ${sample_id}.assembly.unfiltered.fasta
 
     # Generate report
     total_contigs=\$(wc -l < ${fai})
@@ -133,10 +133,10 @@ process FILTER_APPLY_CONTIGS {
     removed_contigs=\$((total_contigs - kept_contigs))
 
     original_size=\$(awk '{sum+=\$2} END {print sum}' ${fai})
-    filtered_size=\$(seqtk comp assembly.filtered.fasta | awk '{sum+=\$2} END {print sum}') || filtered_size=0
+    filtered_size=\$(seqtk comp ${sample_id}.assembly.filtered.fasta | awk '{sum+=\$2} END {print sum}') || filtered_size=0
     removed_bp=\$((original_size - filtered_size))
 
-    cat > filter_report.txt << EOF
+    cat > ${sample_id}.filter_report.txt << EOF
 ASSEMBLY FILTERING REPORT
 =========================
 Sample: ${sample_id}
@@ -158,8 +158,8 @@ CONTIG DETAILS
 --------------
 EOF
 
-    echo -e "Contig\\tLength\\tIdentity\\tCoverage\\tStatus" >> filter_report.txt
-    cat filter_decisions.tsv >> filter_report.txt
+    echo -e "Contig\\tLength\\tIdentity\\tCoverage\\tStatus" >> ${sample_id}.filter_report.txt
+    cat filter_decisions.tsv >> ${sample_id}.filter_report.txt
 
     # Cleanup
     rm -f filter_decisions.tsv keep_contigs.txt

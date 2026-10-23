@@ -14,14 +14,14 @@ process SELECT_BEST_ASSEMBLY {
 
     container "quay.io/biocontainers/pandas:2.2.1"
 
-    publishDir "${params.outdir}/${sample_id}/best",                     mode: 'copy', pattern: 'assembly.fasta'
+    publishDir "${params.outdir}/${sample_id}/best",                     mode: 'copy', pattern: '*.assembly.fasta'
     publishDir "${params.outdir}/reports/assembly_selection",             mode: 'copy', pattern: '*.txt'
 
     input:
     tuple val(sample_id), path(denovo_assembly), path(refguided_assembly), path(denovo_quast), path(refguided_quast)
 
     output:
-    tuple val(sample_id), path("assembly.fasta"),       emit: assembly
+    tuple val(sample_id), path("${sample_id}.assembly.fasta"),       emit: assembly
     path "${sample_id}.txt",                             emit: report
     path "${sample_id}.method.txt",                      emit: method
 
@@ -137,9 +137,9 @@ process SELECT_BEST_ASSEMBLY {
         f.write(method + "\\n")
 
     if method == "denovo":
-        shutil.copy("${denovo_assembly}", "assembly.fasta")
+        shutil.copy("${denovo_assembly}", "${sample_id}.assembly.fasta")
     else:
-        shutil.copy("${refguided_assembly}", "assembly.fasta")
+        shutil.copy("${refguided_assembly}", "${sample_id}.assembly.fasta")
     """
 }
 
@@ -157,7 +157,7 @@ process COPY_BEST_ASSEMBLY {
     
     container "quay.io/biocontainers/pandas:2.2.1"
 
-    publishDir "${params.outdir}/${sample_id}/best",                     mode: 'copy', pattern: 'assembly.fasta'
+    publishDir "${params.outdir}/${sample_id}/best",                     mode: 'copy', pattern: '*.assembly.fasta'
     publishDir "${params.outdir}/reports/assembly_selection",             mode: 'copy', pattern: '*.method.txt'
 
     input:
@@ -165,12 +165,12 @@ process COPY_BEST_ASSEMBLY {
     val method_name
 
     output:
-    tuple val(sample_id), path("assembly.fasta"), emit: assembly
+    tuple val(sample_id), path("${sample_id}.assembly.fasta"), emit: assembly
     path "${sample_id}.method.txt",                emit: method
 
     script:
     """
-    cp ${assembly} assembly.fasta
+    cp ${assembly} ${sample_id}.assembly.fasta
     echo "${method_name}" > ${sample_id}.method.txt
     """
 }
