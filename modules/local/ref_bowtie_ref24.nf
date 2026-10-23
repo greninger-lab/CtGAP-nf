@@ -57,6 +57,11 @@ process REF_SAMTOOLS_REF24 {
 
     samtools coverage ${sample_id}.ref24.bam > tmp.cov.tsv
 
-    awk -v sample="${sample_id}" 'BEGIN{OFS="\\t"} NR==1{print "sample_name", \$0} NR>1{print sample, \$0}' tmp.cov.tsv > ${sample_id}.coverage.ref24.tsv
+    # Add sample_name column; handle empty coverage (header-only) gracefully
+    if [ \$(wc -l < tmp.cov.tsv) -gt 1 ]; then
+        awk -v sample="${sample_id}" 'BEGIN{OFS="\\t"} NR==1{print "sample_name", \$0} NR>1{print sample, \$0}' tmp.cov.tsv > ${sample_id}.coverage.ref24.tsv
+    else
+        echo -e "sample_name\\t\$(head -1 tmp.cov.tsv)" > ${sample_id}.coverage.ref24.tsv
+    fi
     """
 }

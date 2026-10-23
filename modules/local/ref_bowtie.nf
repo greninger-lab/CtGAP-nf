@@ -54,5 +54,11 @@ process REF_SAMTOOLS_SORT {
         -o ${sample_id}.bam
 
     samtools flagstat ${sample_id}.bam > ${sample_id}.flagstat.txt
+
+    # Check if any reads mapped
+    mapped=\$(grep "mapped (" ${sample_id}.flagstat.txt | head -1 | awk '{print \$1}')
+    if [ "\${mapped:-0}" -eq 0 ]; then
+        echo "WARNING: No reads mapped to reference for ${sample_id}" >> ${sample_id}.flagstat.txt
+    fi
     """
 }

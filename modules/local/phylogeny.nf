@@ -11,7 +11,7 @@ process SKA_ALIGNMENT {
     tag "all_samples"
     label 'process_medium'
 
-    container "quay.io/biocontainers/ska2:0.3.7--h4ac6f70_3"
+    container "quay.io/biocontainers/ska2:0.5.1--h4349ce8_0"
 
     publishDir "${params.outdir}/tree", mode: 'copy'
 
