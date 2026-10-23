@@ -20,6 +20,7 @@ process SKA_ALIGNMENT {
 
     output:
     path "ska_alignment.fasta", emit: alignment
+    path "ska.log",             emit: log
 
     script:
     """
@@ -38,26 +39,43 @@ process SKA_ALIGNMENT {
         done
     fi
 
-    # Debug: show input list
+    # Debug: show input list and environment
     echo "=== SKA input list ===" >> ska.log
     cat input.list >> ska.log
     echo "=== End input list ===" >> ska.log
-    echo "Number of samples: \$(wc -l < input.list)" >> ska.log
+    echo "Number of input lines: \$(wc -l < input.list)" >> ska.log
+    echo "Number of assembly files: \$(ls assemblies/ | wc -l)" >> ska.log
+    echo "Assembly files:" >> ska.log
+    ls -la assemblies/ >> ska.log 2>&1
+    echo "which ska: \$(which ska 2>&1)" >> ska.log
+    echo "which python3: \$(which python3 2>&1)" >> ska.log
+    echo "which generate_ska_alignment.py: \$(which generate_ska_alignment.py 2>&1)" >> ska.log
+    echo "which gubbins_alignment_checker.py: \$(which gubbins_alignment_checker.py 2>&1)" >> ska.log
+    echo "PATH: \$PATH" >> ska.log
+    echo "=== End debug ===" >> ska.log
 
-    # Run SKA alignment
-    set +e
-    generate_ska_alignment.py \\
-        --input input.list \\
-        --out ska_alignment.fasta \\
-        --reference ${params.scaffold_ref} \\
-        --threads ${task.cpus} 2>&1 | tee -a ska.log
-    exitcode=\$?
-    set -e
-
-    # If SKA fails (e.g., too few samples), create empty alignment
-    if [ \$exitcode -ne 0 ] || [ ! -f ska_alignment.fasta ]; then
-        echo "WARNING: SKA alignment failed (exit code \$exitcode). Creating empty alignment." >> ska.log
+    # Check if we have enough samples
+    num_samples=\$(wc -l < input.list)
+    if [ "\$num_samples" -lt 2 ]; then
+        echo "WARNING: Only \$num_samples samples in input list (need >=2 for SKA). Skipping." >> ska.log
         touch ska_alignment.fasta
+    else
+        # Run SKA alignment
+        set +e
+        generate_ska_alignment.py \\
+            --input input.list \\
+            --out ska_alignment.fasta \\
+            --reference ${params.scaffold_ref} \\
+            --threads ${task.cpus} 2>&1 | tee -a ska.log
+        exitcode=\$?
+        set -e
+
+        # If SKA fails, create empty alignment
+        if [ \$exitcode -ne 0 ] || [ ! -f ska_alignment.fasta ]; then
+            echo "WARNING: SKA alignment failed (exit code \$exitcode). Creating empty alignment." >> ska.log
+            cat ska.log >&2
+            touch ska_alignment.fasta
+        fi
     fi
     """
 }
