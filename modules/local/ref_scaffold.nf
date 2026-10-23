@@ -19,8 +19,8 @@ process REF_SCAFFOLD {
     tuple val(sample_id), path(contigs)
 
     output:
-    tuple val(sample_id), path("ragtag.scaffold.fasta"), emit: scaffold
-    path "scaffold_result.txt",                           emit: result
+    tuple val(sample_id), path("ragtag.scaffold.fasta"),            emit: scaffold
+    path "${sample_id}.scaffold_result.txt",                         emit: result
 
     script:
     """
@@ -39,10 +39,10 @@ process REF_SCAFFOLD {
 
     if [ \$exitcode -ne 0 ] || [ ! -f ragtag_out/ragtag.scaffold.fasta ]; then
         echo "WARNING: RagTag scaffolding failed for ${sample_id}. Using original contigs."
-        echo "SCAFFOLD_FAILED" > scaffold_result.txt
+        echo "SCAFFOLD_FAILED" > ${sample_id}.scaffold_result.txt
         cp ${contigs} ragtag.scaffold.fasta
     else
-        echo "SCAFFOLD_SUCCESS" > scaffold_result.txt
+        echo "SCAFFOLD_SUCCESS" > ${sample_id}.scaffold_result.txt
         cp ragtag_out/ragtag.scaffold.fasta .
     fi
     """
