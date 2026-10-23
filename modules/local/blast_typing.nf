@@ -105,10 +105,10 @@ process COLLATE_BLAST {
     """
     # Primary BLAST collation
     echo -e "query\\tsubject\\tpident\\tlength\\tmismatch\\tgapopen\\tquery_start\\tquery_end\\tsubject_start\\tsubject_end\\tevalue\\tbitscore" > best.ompA_genovar.blast.tsv
-    for f in primary/*.tab; do [ -s "\$f" ] && cat "\$f"; done >> best.ompA_genovar.blast.tsv
+    for f in primary/*.tab; do [ -s "\$f" ] && cat "\$f" || true; done >> best.ompA_genovar.blast.tsv
 
     # Secondary BLAST collation
     echo -e "query\\tsubject\\tpident\\tlength\\tmismatch\\tgapopen\\tquery_start\\tquery_end\\tsubject_start\\tsubject_end\\tevalue\\tbitscore" > best.secondary.blast.tsv
-    for f in secondary/*.tab; do [ -s "\$f" ] && cat "\$f"; done >> best.secondary.blast.tsv
+    for f in secondary/*.tab; do [ -s "\$f" ] && cat "\$f" || true; done >> best.secondary.blast.tsv
     """
 }
