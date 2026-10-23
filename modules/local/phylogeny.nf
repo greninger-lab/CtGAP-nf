@@ -11,7 +11,7 @@ process SKA_ALIGNMENT {
     tag "all_samples"
     label 'process_medium'
 
-    container "quay.io/biocontainers/pandas:2.2.1"
+    container "quay.io/biocontainers/ska2:0.3.7--h4ac6f70_3"
 
     publishDir "${params.outdir}/tree", mode: 'copy'
 
@@ -26,7 +26,7 @@ process SKA_ALIGNMENT {
     # Build input list: sample_name<tab>fasta_path
     > input.list
     for fasta in assemblies/*; do
-        sample=\$(basename "\$fasta" | sed 's/[.]fasta\$//' | sed 's/[.]fa\$//')
+        sample=\$(basename "\$fasta" | sed 's/[.]assembly[.]filtered[.]fasta\$//' | sed 's/[.]assembly[.]fasta\$//' | sed 's/[.]fasta\$//' | sed 's/[.]fa\$//')
         echo -e "\$sample\\t\$fasta" >> input.list
     done
 
@@ -38,13 +38,19 @@ process SKA_ALIGNMENT {
         done
     fi
 
+    # Debug: show input list
+    echo "=== SKA input list ===" >> ska.log
+    cat input.list >> ska.log
+    echo "=== End input list ===" >> ska.log
+    echo "Number of samples: \$(wc -l < input.list)" >> ska.log
+
     # Run SKA alignment
     set +e
     generate_ska_alignment.py \\
         --input input.list \\
         --out ska_alignment.fasta \\
         --reference ${params.scaffold_ref} \\
-        --threads ${task.cpus} 2>&1 | tee ska.log
+        --threads ${task.cpus} 2>&1 | tee -a ska.log
     exitcode=\$?
     set -e
 
