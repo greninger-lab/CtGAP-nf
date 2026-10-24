@@ -39,43 +39,68 @@ process SKA_ALIGNMENT {
         done
     fi
 
-    # Debug: show input list and environment
-    echo "=== SKA input list ===" >> ska.log
+    # Log input list
+    echo "=== SKA input list ===" > ska.log
     cat input.list >> ska.log
     echo "=== End input list ===" >> ska.log
-    echo "Number of input lines: \$(wc -l < input.list)" >> ska.log
-    echo "Number of assembly files: \$(ls assemblies/ | wc -l)" >> ska.log
-    echo "Assembly files:" >> ska.log
-    ls -la assemblies/ >> ska.log 2>&1
-    echo "which ska: \$(which ska 2>&1)" >> ska.log
-    echo "which python3: \$(which python3 2>&1)" >> ska.log
-    echo "which generate_ska_alignment.py: \$(which generate_ska_alignment.py 2>&1)" >> ska.log
-    echo "which gubbins_alignment_checker.py: \$(which gubbins_alignment_checker.py 2>&1)" >> ska.log
-    echo "PATH: \$PATH" >> ska.log
-    echo "=== End debug ===" >> ska.log
+    num_samples=\$(wc -l < input.list)
+    echo "Number of input lines: \$num_samples" >> ska.log
 
     # Check if we have enough samples
-    num_samples=\$(wc -l < input.list)
     if [ "\$num_samples" -lt 2 ]; then
         echo "WARNING: Only \$num_samples samples in input list (need >=2 for SKA). Skipping." >> ska.log
         touch ska_alignment.fasta
     else
-        # Run SKA alignment
         set +e
-        generate_ska_alignment.py \\
-            --input input.list \\
-            --out ska_alignment.fasta \\
-            --reference ${params.scaffold_ref} \\
-            --threads ${task.cpus} 2>&1 | tee -a ska.log
-        exitcode=\$?
-        set -e
 
-        # If SKA fails, create empty alignment
-        if [ \$exitcode -ne 0 ] || [ ! -f ska_alignment.fasta ]; then
-            echo "WARNING: SKA alignment failed (exit code \$exitcode). Creating empty alignment." >> ska.log
-            cat ska.log >&2
+        # Step 1: Build SKA sketch from input list
+        echo "Running ska build..." >> ska.log
+        ska build -o ska_out -k 17 -f input.list --threads ${task.cpus} >> ska.log 2>&1
+        build_exit=\$?
+        echo "ska build exit code: \$build_exit" >> ska.log
+
+        if [ \$build_exit -ne 0 ] || [ ! -f ska_out.skf ]; then
+            echo "WARNING: ska build failed. Creating empty alignment." >> ska.log
             touch ska_alignment.fasta
+        else
+            # Step 2: Map against reference with repeat masking
+            echo "Running ska map..." >> ska.log
+            ska map -o tmp_alignment --threads ${task.cpus} --repeat-mask ${params.scaffold_ref} ska_out.skf >> ska.log 2>&1
+            map_exit=\$?
+            echo "ska map exit code: \$map_exit" >> ska.log
+
+            if [ \$map_exit -ne 0 ] || [ ! -f tmp_alignment ]; then
+                echo "WARNING: ska map failed. Creating empty alignment." >> ska.log
+                touch ska_alignment.fasta
+            else
+                # Step 3: Clean alignment (replace non-ACGTN with N, sanitize headers)
+                echo "Cleaning alignment..." >> ska.log
+                awk '
+                    /^>/ {
+                        # Clean header: remove special chars, keep first word
+                        gsub(/#/, "_")
+                        gsub(/:/, "_")
+                        sub(/^>/, "")
+                        split(\$0, a, " ")
+                        print ">" a[1]
+                        next
+                    }
+                    {
+                        # Uppercase and replace non-ACGTN- with N
+                        seq = toupper(\$0)
+                        gsub(/[^ACGTN-]/, "N", seq)
+                        print seq
+                    }
+                ' tmp_alignment > ska_alignment.fasta
+
+                echo "Alignment created with \$(grep -c "^>" ska_alignment.fasta) sequences" >> ska.log
+
+                # Cleanup
+                rm -f ska_out.skf tmp_alignment
+            fi
         fi
+
+        set -e
     fi
     """
 }
