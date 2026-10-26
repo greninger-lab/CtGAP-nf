@@ -556,6 +556,14 @@ workflow {
             .map { sample_id, fasta -> tuple(sample_id, file('NO_MIXED')) }
     }
 
+    // Build per-sample CT typing channel (optional)
+    if (params.ct_typing_enabled) {
+        ch_ct_typing_for_report = CT_ASSIGN.out.assignment
+    } else {
+        ch_ct_typing_for_report = ch_final_assembly
+            .map { sample_id, fasta -> tuple(sample_id, file('NO_CT_TYPING')) }
+    }
+
     // Build per-sample report input by joining key outputs
     ch_report_base = ch_final_assembly
         .join(QUAST.out.report)
@@ -571,6 +579,7 @@ workflow {
         .join(DENOVO_SAMTOOLS_REF24.out.coverage)
         .join(ch_annotation_per_sample)
         .join(ch_mixed_for_report)
+        .join(ch_ct_typing_for_report)
 
     // Add method file by extracting sample_id from filename
     // Method files are named {sample_id}.method.txt
@@ -583,10 +592,12 @@ workflow {
         .join(ch_report_base)
         .map { sample_id, method_file, assembly, quast, blast_p, blast_s,
                mlst_gen, mlst_ct, plasmid_analysis, plasmid_blast, plasmid_mlst,
-               fastp_json, kraken_report, coverage, annotation_txt, mixed_summary ->
+               fastp_json, kraken_report, coverage, annotation_txt, mixed_summary,
+               ct_typing_csv ->
             tuple(sample_id, assembly, method_file, quast, blast_p, blast_s,
                   mlst_gen, mlst_ct, plasmid_analysis, plasmid_blast, plasmid_mlst,
-                  fastp_json, kraken_report, coverage, annotation_txt, mixed_summary)
+                  fastp_json, kraken_report, coverage, annotation_txt, mixed_summary,
+                  ct_typing_csv)
         }
 
     COMPREHENSIVE_REPORT(ch_report_input)

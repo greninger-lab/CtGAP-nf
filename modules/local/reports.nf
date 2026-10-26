@@ -35,7 +35,8 @@ process COMPREHENSIVE_REPORT {
           path(kraken_report),
           path(coverage_tsv),
           path(annotation_txt),
-          path(mixed_summary)
+          path(mixed_summary),
+          path(ct_typing_csv)
 
     output:
     tuple val(sample_id), path("${sample_id}_ctgap_report.pdf"), emit: pdf
@@ -227,6 +228,34 @@ process COMPREHENSIVE_REPORT {
                 result[key] = match.group(1)
         return result if result else None
 
+    def parse_ct_typing(ct_file):
+        if not os.path.exists(ct_file) or os.path.getsize(ct_file) == 0:
+            return None
+        if "NO_CT_TYPING" in ct_file:
+            return None
+        try:
+            result = {}
+            with open(ct_file) as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    if "putative_reference" in row and row["putative_reference"]:
+                        result["type"] = row["putative_reference"]
+                    elif "ref_clean" in row and row["ref_clean"]:
+                        result["type"] = row["ref_clean"]
+                    if "confidence" in row and row["confidence"]:
+                        result["confidence"] = row["confidence"]
+                    if "ANI" in row and row["ANI"]:
+                        try:
+                            result["fastani_best"] = f"{float(row['ANI']):.2f}%"
+                        except ValueError:
+                            result["fastani_best"] = row["ANI"]
+                    if "mash_dist" in row and row["mash_dist"]:
+                        result["mash_best"] = row["mash_dist"]
+                    break
+            return result if result else None
+        except Exception:
+            return None
+
     def parse_mixed_detection(summary_file):
         if not os.path.exists(summary_file):
             return None
@@ -276,6 +305,7 @@ process COMPREHENSIVE_REPORT {
     # Optional sections - read from staged input files
     annotation = parse_annotation("${annotation_txt}")
     mixed = parse_mixed_detection("${mixed_summary}")
+    ct_typing = parse_ct_typing("${ct_typing_csv}")
 
     # Extract genovar
     genovar = "Unknown"
@@ -323,8 +353,9 @@ process COMPREHENSIVE_REPORT {
 
         # Key Findings
         elements.append(Paragraph("Key Findings", section_style))
+        ct_strain = ct_typing.get("type", "N/A") if ct_typing else "Not run"
         fd = [["ompA Genotype:", genovar, "Identity:", genovar_identity],
-              ["Ct Strain:", "N/A", "Assembly Method:", method],
+              ["Ct Strain:", ct_strain, "Assembly Method:", method],
               ["Plasmid:", plasmid_summary, "Contigs:", str(quast.get("num_contigs", "N/A"))]]
         ft = Table(fd, colWidths=[1.3*inch, 1.7*inch, 1.5*inch, 1.7*inch])
         ft.setStyle(TableStyle([('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'), ('FONTNAME', (2,0), (2,-1), 'Helvetica-Bold'),
@@ -369,6 +400,25 @@ process COMPREHENSIVE_REPORT {
         elements.append(Spacer(1, 0.1*inch))
         elements.append(Paragraph("MLST", subsection_style))
         elements.append(Paragraph(f"<b>Chlamydiales:</b> {mlst_chlam}<br/><b>C. trachomatis:</b> {mlst_ct}", kv_style))
+        elements.append(Spacer(1, 0.1*inch))
+
+        # Ct Strain Typing
+        if ct_typing:
+            elements.append(Paragraph("Ct Strain Typing", subsection_style))
+            elements.append(Paragraph(
+                f"<b>Assigned Strain:</b> {ct_typing.get('type', 'N/A')}<br/>"
+                f"<b>Mash Best Match:</b> {ct_typing.get('mash_best', 'N/A')}<br/>"
+                f"<b>FastANI Best Match:</b> {ct_typing.get('fastani_best', 'N/A')}", kv_style))
+            elements.append(Spacer(1, 0.1*inch))
+            ct_method_style = ParagraphStyle('CtMethod', parent=styles['Normal'], fontSize=9,
+                                              textColor=colors.HexColor("#555555"), leftIndent=20)
+            elements.append(Paragraph(
+                '<b>Method:</b> The sample genome was compared against 26 reference <i>C. trachomatis</i> genomes '
+                'using Mash (k-mer distance) and FastANI (average nucleotide identity). The assigned strain '
+                'represents the closest matching reference. FastANI values &gt;99.5% indicate very high similarity.<br/><br/>'
+                '<b>Tip:</b> Users can add custom reference genomes to '
+                '<font face="Courier">resources/references/ct/individual/</font> '
+                'to improve strain typing for specific research needs.', ct_method_style))
         elements.append(Spacer(1, 0.2*inch))
 
         # 3. Plasmid
