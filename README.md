@@ -268,6 +268,7 @@ De novo assembly is preferred in ties or close calls (within 2 points), as it in
 | 5 | `REF_BOWTIE_ALIGN` → `REF_SAMTOOLS_NAMESORT`, `REF_BOWTIE_REF24_ALIGN` → `REF_SAMTOOLS_REF24`, `BAMTOFASTQ`, `REF_SHOVILL`, `REF_SCAFFOLD`, `REF_GAPFILLER`, `REF_RENAME`, `REF_QUAST` | Reference-guided assembly path |
 | 6 | `SELECT_BEST_ASSEMBLY` / `COPY_BEST_ASSEMBLY` | Assembly selection (auto mode scores both, picks best) |
 | 6b | `FILTER_INDEX_ASSEMBLY` → `FILTER_MINIMAP2_ALIGN` → `FILTER_APPLY_CONTIGS` | Remove non-Ct contigs (optional) |
+| 6c | `QUAST_FINAL` | QUAST on final (post-selection, post-filter) assembly for accurate report metrics |
 | 7 | `BLAST_OMPA`, `MLST`, `SKA_ALIGNMENT`, `IQTREE` | Typing + phylogenetics |
 | 8 | `CT_MASH_DIST`, `CT_FASTANI`, `CT_ASSIGN` | Ct strain typing (optional) |
 | 9 | `PLASMID_BOWTIE_ALIGN` → `PLASMID_SAMTOOLS_SORT`, `EXTRACT_PLASMID_READS`, `UNICYCLER_PLASMID`, `ANALYZE_PLASMID`, `REORIENT_PLASMID`, `BLAST_PLASMID`, `MLST_PLASMID`, `PLASMID_REPORT` | Dedicated plasmid assembly |
