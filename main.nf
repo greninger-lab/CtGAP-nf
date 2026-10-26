@@ -29,6 +29,7 @@ log.info """\
     organism     : ${params.organism}
     reference    : ${params.reference}
     host ref     : ${params.host_reference}
+    truncate IDs : ${params.truncate_sample_names}
     ===============================================
     """.stripIndent()
 
@@ -161,7 +162,28 @@ workflow {
                 if (reads.size() != 2) {
                     error "Expected paired-end files (R1 and R2) for sample '${sample_id}', but found ${reads.size()} file(s)"
                 }
-                tuple(sample_id, reads[0], reads[1])
+                // Optionally strip Illumina _S##_L### suffixes from sample names
+                def clean_id = sample_id
+                if (params.truncate_sample_names) {
+                    clean_id = sample_id.replaceAll(/_S\d+(_L\d+)?$/, '')
+                    if (clean_id != sample_id) {
+                        log.info "  Sample name truncated: ${sample_id} -> ${clean_id}"
+                    }
+                }
+                tuple(clean_id, reads[0], reads[1])
+            }
+            // Check for duplicate sample names (can occur after truncation)
+            .groupTuple()
+            .map { sample_id, r1_list, r2_list ->
+                if (r1_list.size() > 1) {
+                    error "Duplicate sample name '${sample_id}' found in ${params.indir} " +
+                          "(${r1_list.size()} file pairs). " +
+                          (params.truncate_sample_names
+                              ? "This may be caused by --truncate_sample_names stripping _S##_L### suffixes. " +
+                                "Use --truncate_sample_names false to keep original names, or rename input files."
+                              : "Each sample must have a unique name.")
+                }
+                tuple(sample_id, r1_list[0], r2_list[0])
             }
     }
 

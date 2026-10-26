@@ -134,6 +134,10 @@ Or use glob-based input (files must be named `{sample}_R{1,2}.fastq.gz`):
 nextflow run main.nf --indir /path/to/fastqs/ --outdir results/
 ```
 
+> **Note:** By default, Illumina `_S##_L###` suffixes are stripped from sample names
+> (e.g. `CT_Cap_1_S31_L001` becomes `CT_Cap_1`). Use `--truncate_sample_names false`
+> to keep the original names.
+
 ### 3. Assembly modes
 
 ```bash
@@ -162,6 +166,7 @@ All parameters can be set via command line (`--param value`) or in `nextflow.con
 | `--outdir` | `../output` | Output directory |
 | `--mode` | `auto` | Assembly mode: `auto`, `denovo`, or `reference-denovo` |
 | `--organism` | `ct` | Organism code |
+| `--truncate_sample_names` | `true` | Strip Illumina `_S##_L###` suffixes from sample names (glob mode only) |
 
 ### Optional Features
 
