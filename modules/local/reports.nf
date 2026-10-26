@@ -214,7 +214,7 @@ process COMPREHENSIVE_REPORT {
         if not os.path.exists(annotation_txt):
             return None
         content = Path(annotation_txt).read_text()
-        if not content.strip() or "NO_ANNOTATION" in annotation_txt or len(content) < 20:
+        if not content.strip() or "NO_ANNOTATION" in annotation_txt or "NO_FILE" in annotation_txt or len(content) < 20:
             return None
         result = {}
         patterns = {
@@ -231,7 +231,7 @@ process COMPREHENSIVE_REPORT {
     def parse_ct_typing(ct_file):
         if not os.path.exists(ct_file) or os.path.getsize(ct_file) == 0:
             return None
-        if "NO_CT_TYPING" in ct_file:
+        if "NO_CT_TYPING" in ct_file or "NO_FILE" in ct_file:
             return None
         try:
             result = {}

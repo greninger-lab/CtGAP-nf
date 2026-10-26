@@ -537,19 +537,13 @@ workflow {
             .join(ch_annotation_for_report, remainder: true)
             .map { items ->
                 def sample_id = items[0]
-                def txt = items.size() > 1 && items[1] != null ? items[1] : {
-                    def ph = new File("${workDir}/NO_ANNOTATION_${items[0]}_join")
-                    ph.text = 'NO_ANNOTATION'
-                    ph.toPath()
-                }()
+                def txt = items.size() > 1 && items[1] != null ? items[1] : file("${projectDir}/assets/NO_FILE")
                 tuple(sample_id, txt)
             }
     } else {
         ch_annotation_per_sample = ch_final_assembly
             .map { sample_id, fasta ->
-                def placeholder = new File("${workDir}/NO_ANNOTATION_${sample_id}")
-                placeholder.text = 'NO_ANNOTATION'
-                tuple(sample_id, placeholder.toPath())
+                tuple(sample_id, file("${projectDir}/assets/NO_FILE"))
             }
     }
 
@@ -559,9 +553,7 @@ workflow {
     } else {
         ch_mixed_for_report = ch_final_assembly
             .map { sample_id, fasta ->
-                def placeholder = new File("${workDir}/NO_MIXED_${sample_id}")
-                placeholder.text = 'NO_MIXED'
-                tuple(sample_id, placeholder.toPath())
+                tuple(sample_id, file("${projectDir}/assets/NO_FILE"))
             }
     }
 
@@ -571,9 +563,7 @@ workflow {
     } else {
         ch_ct_typing_for_report = ch_final_assembly
             .map { sample_id, fasta ->
-                def placeholder = new File("${workDir}/NO_CT_TYPING_${sample_id}")
-                placeholder.text = 'NO_CT_TYPING'
-                tuple(sample_id, placeholder.toPath())
+                tuple(sample_id, file("${projectDir}/assets/NO_FILE"))
             }
     }
 
