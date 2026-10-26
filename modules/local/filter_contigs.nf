@@ -78,6 +78,8 @@ process FILTER_APPLY_CONTIGS {
     def min_coverage = params.filter_min_coverage
     """
     # Parse PAF and identify Ct contigs
+    # For each contig, sum total aligned bases across all alignment blocks
+    # to handle fragmented alignments (e.g. scaffolded contigs with gaps)
     awk -v min_id=${min_identity} -v min_cov=${min_coverage} '
     BEGIN { OFS="\\t" }
     {
@@ -87,28 +89,33 @@ process FILTER_APPLY_CONTIGS {
         alnlen = \$11
 
         identity = (alnlen > 0) ? (matches / alnlen) * 100 : 0
-        coverage = (qlen > 0) ? (alnlen / qlen) * 100 : 0
 
-        if (!(qname in best_cov) || coverage > best_cov[qname]) {
-            best_cov[qname] = coverage
-            best_id[qname] = identity
-            best_len[qname] = qlen
-        }
+        # Accumulate total aligned length and matches across all alignments for this contig
+        total_alnlen[qname] += alnlen
+        total_matches[qname] += matches
+        contig_len[qname] = qlen
     }
     END {
-        for (contig in best_cov) {
-            if (best_id[contig] >= min_id && best_cov[contig] >= min_cov) {
-                print contig, best_len[contig], best_id[contig], best_cov[contig], "KEEP"
+        for (contig in total_alnlen) {
+            aln = total_alnlen[contig]
+            mat = total_matches[contig]
+            qlen = contig_len[contig]
+
+            overall_identity = (aln > 0) ? (mat / aln) * 100 : 0
+            overall_coverage = (qlen > 0) ? (aln / qlen) * 100 : 0
+
+            if (overall_identity >= min_id && overall_coverage >= min_cov) {
+                print contig, qlen, overall_identity, overall_coverage, "KEEP"
             } else {
-                print contig, best_len[contig], best_id[contig], best_cov[contig], "REMOVE"
+                print contig, qlen, overall_identity, overall_coverage, "REMOVE"
             }
         }
     }' ${paf} > filter_decisions.tsv
 
     # Check for contigs with NO alignment
     cut -f1 ${fai} | while read contig; do
-        if ! grep -q "^\$contig" filter_decisions.tsv; then
-            len=\$(grep "^\$contig" ${fai} | cut -f2)
+        if ! grep -q "^\$contig\\b" filter_decisions.tsv; then
+            len=\$(grep "^\$contig\\b" ${fai} | cut -f2)
             echo -e "\$contig\\t\$len\\t0\\t0\\tREMOVE_NO_ALIGN"
         fi
     done >> filter_decisions.tsv
@@ -119,6 +126,12 @@ process FILTER_APPLY_CONTIGS {
     # Create filtered assembly
     if [ -s keep_contigs.txt ]; then
         seqtk subseq ${assembly} keep_contigs.txt > ${sample_id}.assembly.filtered.fasta
+        # Verify filtered assembly is not empty
+        filtered_seqs=\$(grep -c "^>" ${sample_id}.assembly.filtered.fasta || echo 0)
+        if [ "\$filtered_seqs" -eq 0 ]; then
+            echo "WARNING: seqtk produced empty output - keeping original assembly"
+            cp ${assembly} ${sample_id}.assembly.filtered.fasta
+        fi
     else
         cp ${assembly} ${sample_id}.assembly.filtered.fasta
         echo "WARNING: No contigs passed filtering - keeping original"

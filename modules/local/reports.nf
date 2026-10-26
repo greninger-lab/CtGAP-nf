@@ -213,11 +213,13 @@ process COMPREHENSIVE_REPORT {
         if not os.path.exists(annotation_txt):
             return None
         content = Path(annotation_txt).read_text()
+        if not content.strip() or "NO_ANNOTATION" in annotation_txt or len(content) < 20:
+            return None
         result = {}
         patterns = {
-            "cds": r"CDSs:\\s*(\\d+)", "trnas": r"tRNAs:\\s*(\\d+)",
-            "rrnas": r"rRNAs:\\s*(\\d+)", "ncrnas": r"ncRNAs:\\s*(\\d+)",
-            "hypotheticals": r"hypotheticals:\\s*(\\d+)", "pseudogenes": r"pseudogenes:\\s*(\\d+)",
+            "cds": r"CDSs[:\\s]+(\\d+)", "trnas": r"tRNAs[:\\s]+(\\d+)",
+            "rrnas": r"rRNAs[:\\s]+(\\d+)", "ncrnas": r"ncRNAs[:\\s]+(\\d+)",
+            "hypotheticals": r"hypotheticals[:\\s]+(\\d+)", "pseudogenes": r"pseudogenes[:\\s]+(\\d+)",
         }
         for key, pattern in patterns.items():
             match = re.search(pattern, content, re.IGNORECASE)
@@ -311,7 +313,7 @@ process COMPREHENSIVE_REPORT {
         elements.append(Paragraph("CtGAP-nf Analysis Report", title_style))
         elements.append(Spacer(1, 0.1*inch))
         ht = Table([["Sample ID:", sample], ["Report Date:", datetime.now().strftime("%Y-%m-%d %H:%M")],
-                     ["Pipeline:", "CtGAP-nf v1.0"]], colWidths=[1.5*inch, 4*inch])
+                     ["Pipeline:", "CtGAP v2.0"]], colWidths=[1.5*inch, 4*inch])
         ht.setStyle(TableStyle([('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'), ('FONTSIZE', (0,0), (-1,-1), 10),
                                  ('BOTTOMPADDING', (0,0), (-1,-1), 4)]))
         elements.append(ht)
@@ -322,9 +324,9 @@ process COMPREHENSIVE_REPORT {
         # Key Findings
         elements.append(Paragraph("Key Findings", section_style))
         fd = [["ompA Genotype:", genovar, "Identity:", genovar_identity],
-              ["Assembly Method:", method, "Contigs:", str(quast.get("num_contigs", "N/A"))],
-              ["Plasmid:", plasmid_summary, "N50:", f"{quast.get('n50', 0):,} bp"]]
-        ft = Table(fd, colWidths=[1.5*inch, 1.5*inch, 1.3*inch, 1.7*inch])
+              ["Ct Strain:", "N/A", "Assembly Method:", method],
+              ["Plasmid:", plasmid_summary, "Contigs:", str(quast.get("num_contigs", "N/A"))]]
+        ft = Table(fd, colWidths=[1.3*inch, 1.7*inch, 1.5*inch, 1.7*inch])
         ft.setStyle(TableStyle([('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'), ('FONTNAME', (2,0), (2,-1), 'Helvetica-Bold'),
                                  ('FONTSIZE', (0,0), (-1,-1), 10), ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#ECF0F1")),
                                  ('BOX', (0,0), (-1,-1), 1, colors.HexColor("#BDC3C7")),
@@ -360,7 +362,8 @@ process COMPREHENSIVE_REPORT {
         if blast_ompa:
             top = blast_ompa[0]
             elements.append(Paragraph(f"<b>Best Match:</b> {top['subject']}<br/><b>Identity:</b> {top['identity']:.2f}%<br/>"
-                                      f"<b>Alignment Length:</b> {top['length']} bp<br/><b>Genotype:</b> {genovar}", kv_style))
+                                      f"<b>Alignment Length:</b> {top['length']} bp<br/>"
+                                      f"<b>E-value:</b> {top['evalue']:.2e}<br/><b>Genotype:</b> {genovar}", kv_style))
         else:
             elements.append(Paragraph("No BLAST hits found", kv_style))
         elements.append(Spacer(1, 0.1*inch))
@@ -370,11 +373,20 @@ process COMPREHENSIVE_REPORT {
 
         # 3. Plasmid
         elements.append(Paragraph("3. Plasmid Analysis", section_style))
-        status_color = "#27AE60" if plasmid["status"] == "DETECTED" else "#E74C3C" if plasmid["status"] == "NOT_DETECTED" else "#F39C12"
-        status_text = "PLASMID DETECTED" if plasmid["status"] == "DETECTED" else "NO PLASMID DETECTED" if plasmid["status"] == "NOT_DETECTED" else plasmid["status"]
-        elements.append(Paragraph(f'<b>Status:</b> <font color="{status_color}"><b>{status_text}</b></font><br/>'
+        elements.append(Paragraph("Dedicated Plasmid Assembly", subsection_style))
+        if plasmid["status"] == "DETECTED":
+            status_color = "#27AE60"
+            status_text = "Ct PLASMID DETECTED"
+        elif plasmid["status"] == "NOT_DETECTED":
+            status_color = "#E74C3C"
+            status_text = "NO PLASMID DETECTED"
+        else:
+            status_color = "#F39C12"
+            status_text = plasmid["status"]
+        elements.append(Paragraph(f'<b>Detection Status:</b> <font color="{status_color}"><b>{status_text}</b></font><br/>'
                                   f'<b>Length:</b> {plasmid.get("length", "N/A")} bp<br/>'
-                                  f'<b>Circular:</b> {plasmid.get("circular", "Unknown")}', kv_style))
+                                  f'<b>Circular:</b> {plasmid.get("circular", "Unknown")}<br/>'
+                                  f'<b>Size Deviation:</b> N/A', kv_style))
         if plasmid_blast:
             elements.append(Spacer(1, 0.1*inch))
             elements.append(Paragraph("Plasmid BLAST Results", subsection_style))
@@ -400,9 +412,9 @@ process COMPREHENSIVE_REPORT {
             hypo = int(annotation.get("hypotheticals", 0))
             annotated = cds - hypo if cds > hypo else cds
             rate = (annotated / cds * 100) if cds > 0 else 0
-            ad = [["Feature", "Count"], ["CDS", annotation.get("cds", "N/A")],
+            ad = [["Feature", "Count"], ["Coding Sequences (CDS)", annotation.get("cds", "N/A")],
                   ["tRNAs", annotation.get("trnas", "N/A")], ["rRNAs", annotation.get("rrnas", "N/A")],
-                  ["ncRNAs", annotation.get("ncrnas", "N/A")], ["Hypotheticals", annotation.get("hypotheticals", "N/A")],
+                  ["ncRNAs", annotation.get("ncrnas", "N/A")], ["Hypothetical Proteins", annotation.get("hypotheticals", "N/A")],
                   ["Pseudogenes", annotation.get("pseudogenes", "N/A")]]
             at = Table(ad, colWidths=[3*inch, 2*inch])
             at.setStyle(TableStyle([('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
@@ -412,7 +424,9 @@ process COMPREHENSIVE_REPORT {
                                      ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor("#BDC3C7")),
                                      ('ALIGN', (1,1), (1,-1), 'RIGHT')]))
             elements.append(at)
-            elements.append(Paragraph(f"<b>Annotation Efficiency:</b> {rate:.1f}% of CDS have functional annotation", kv_style))
+            elements.append(Spacer(1, 0.1*inch))
+            elements.append(Paragraph(f"<b>Annotation Efficiency:</b> {rate:.1f}% of CDS have functional annotation<br/>"
+                                      f"<b>Functional CDS:</b> {annotated:,} / {cds:,}", kv_style))
             elements.append(Spacer(1, 0.2*inch))
             sec_num += 1
 
@@ -470,20 +484,26 @@ process COMPREHENSIVE_REPORT {
             het = mixed.get("het_sites", 0)
             mean_af = mixed.get("mean_af", "N/A")
             status = mixed.get("status", "Unknown")
+            main_contig_size = mixed.get("main_contig_size", 0)
             pos_range = mixed.get("position_range", 0)
             dist = mixed.get("distribution", "N/A")
             range_str = f"{pos_range/1000:.1f} kb" if pos_range > 1000 else f"{pos_range} bp"
+            contig_size_str = f"{main_contig_size/1000:.1f} kb" if main_contig_size > 1000 else f"{main_contig_size} bp"
 
-            md = [["Metric", "Value"],
-                  ["Heterozygous Sites", str(het)],
-                  ["Mean Allele Frequency", str(mean_af)],
-                  ["Position Spread", range_str]]
-            mt = Table(md, colWidths=[2.5*inch, 2.5*inch])
+            md = [["Metric", "Value", "Interpretation"],
+                  ["Heterozygous Sites", str(het), "Sites passing all quality filters"],
+                  ["Mean Allele Frequency", str(mean_af), "Expected ~0.5 for equal strain mixture"],
+                  ["Main Chromosome", contig_size_str, "Largest contig analyzed (excludes plasmid/fragments)"],
+                  ["Position Spread", range_str, "Genomic range of variants on main chromosome"]]
+            mt = Table(md, colWidths=[1.8*inch, 1.2*inch, 3*inch])
             mt.setStyle(TableStyle([('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
                                      ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#8E44AD")),
                                      ('TEXTCOLOR', (0,0), (-1,0), colors.white), ('FONTSIZE', (0,0), (-1,-1), 9),
                                      ('BOX', (0,0), (-1,-1), 1, colors.HexColor("#BDC3C7")),
-                                     ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor("#BDC3C7"))]))
+                                     ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor("#BDC3C7")),
+                                     ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+                                     ('TOPPADDING', (0,0), (-1,-1), 4),
+                                     ('ALIGN', (1,1), (1,-1), 'CENTER')]))
             elements.append(mt)
             elements.append(Spacer(1, 0.1*inch))
 
@@ -500,9 +520,9 @@ process COMPREHENSIVE_REPORT {
                     f'support two different alleles at intermediate frequencies. Since <i>C. trachomatis</i> is haploid, '
                     f'this pattern suggests the presence of multiple distinct strains in the sample.{dist_text}<br/><br/>'
                     f'<b>Recommendations:</b><br/>'
-                    f'- Interpret typing results (genotype, MLST, Ct strain) with caution - they may represent a consensus<br/>'
-                    f'- Consider that plasmid detection may be affected by strain mixture<br/>'
-                    f'- Review clinical context for possible co-infection or reinfection', kv_style))
+                    f'&bull; Interpret typing results (genotype, MLST, Ct strain) with caution - they may represent a consensus<br/>'
+                    f'&bull; Consider that plasmid detection may be affected by strain mixture<br/>'
+                    f'&bull; Review clinical context for possible co-infection or reinfection', kv_style))
             elif status in ("SINGLE", "LOW_HET"):
                 elements.append(Paragraph(
                     f'<b>Status:</b> <font color="#27AE60">SINGLE STRAIN (LOW HETEROZYGOSITY)</font><br/><br/>'
@@ -519,18 +539,18 @@ process COMPREHENSIVE_REPORT {
             method_note_style = ParagraphStyle('MethodNote', parent=styles['Normal'], fontSize=8,
                                                 textColor=colors.HexColor("#7F8C8D"), leftIndent=20)
             elements.append(Paragraph(
-                '<b>Method:</b> Reads were mapped to the samples main chromosome (largest contig) and variants called. '
+                '<b>Method:</b> Reads were mapped to the sample&#8217;s main chromosome (largest contig) and variants called. '
                 'Heterozygous-like sites are positions where 15-85% of reads support an alternate allele. '
                 '<b>Quality filters:</b> Base quality &ge;20, minimum 2 reads on each strand (reduces sequencing errors '
                 'and strand bias artifacts). Analysis focuses on main chromosome only (excludes plasmid and small fragments). '
-                'In a haploid organism, sites passing these filters indicate multiple genomes.<br/><br/>'
-                'Generated by CtGAP-nf', method_note_style))
+                'In a haploid organism, sites passing these filters indicate multiple genomes.', method_note_style))
 
         # Footer
         elements.append(Spacer(1, 0.3*inch))
         elements.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#BDC3C7")))
         elements.append(Spacer(1, 0.1*inch))
-        elements.append(Paragraph(f'<font size=8 color="#7F8C8D">Generated by CtGAP-nf | {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</font>',
+        elements.append(Paragraph(f'<font size=8 color="#7F8C8D">Generated by CtGAP (Chlamydia trachomatis Genome Analysis Pipeline)<br/>'
+                                  f'Report created: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</font>',
                                   ParagraphStyle('Footer', alignment=TA_CENTER)))
         doc.build(elements)
 

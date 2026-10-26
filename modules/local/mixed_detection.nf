@@ -25,15 +25,19 @@ process MIXED_EXTRACT_MAIN_CONTIG {
 
     script:
     """
-    # Find the largest contig and extract it
+    # Find the largest contig and extract it using the .fai index (most reliable)
     samtools faidx ${assembly}
 
-    largest_contig=\$(awk '/^>/ {if (seq) print length(seq), name; name=\$1; seq=""}
-                         !/^>/ {seq=seq\$0}
-                         END {print length(seq), name}' ${assembly} | \\
-                     sort -rn | head -1 | cut -d' ' -f2 | sed 's/>//')
+    # The .fai file has: name, length, offset, linebases, linewidth
+    # Sort by length (column 2) descending and take the first
+    largest_contig=\$(sort -t\$'\\t' -k2,2nr ${assembly}.fai | head -1 | cut -f1)
 
-    samtools faidx ${assembly} "\$largest_contig" > main_contig.fasta
+    if [ -z "\$largest_contig" ]; then
+        echo "WARNING: Could not determine largest contig" >&2
+        cp ${assembly} main_contig.fasta
+    else
+        samtools faidx ${assembly} "\$largest_contig" > main_contig.fasta
+    fi
     """
 }
 
