@@ -52,6 +52,7 @@ include { SCAFFOLD             } from './modules/local/scaffold'
 include { GAPFILLER            } from './modules/local/gapfiller'
 include { RENAME_CONTIGS       } from './modules/local/rename_contigs'
 include { QUAST                } from './modules/local/quast'
+include { QUAST as QUAST_FINAL } from './modules/local/quast'
 include { DENOVO_COLLATE_COVERAGE } from './modules/local/denovo_collate'
 include { DENOVO_COLLATE_FLAGSTAT } from './modules/local/denovo_collate'
 include { SCAFFOLD_SUMMARY        } from './modules/local/denovo_collate'
@@ -361,6 +362,10 @@ workflow {
         ch_final_assembly = ch_best_assembly
     }
 
+    // ---- STEP 6c: QUAST on final assembly (for accurate report metrics) ----
+    // Run QUAST on the post-filter best assembly so report metrics match the actual output
+    QUAST_FINAL(ch_final_assembly)
+
     // ---- STEP 7: Typing ----
     // 7a. BLAST ompA typing (uses pre-built BLAST DBs from mount point)
     BLAST_OMPA(ch_final_assembly)
@@ -468,8 +473,8 @@ workflow {
 
     // ---- STEP 10: Genome Annotation (optional, coverage-gated) ----
     if (params.annotation_enabled) {
-        // Check coverage for each sample using QUAST reports
-        CHECK_ANNOTATION_COVERAGE(QUAST.out.report)
+        // Check coverage for each sample using QUAST reports from final assembly
+        CHECK_ANNOTATION_COVERAGE(QUAST_FINAL.out.report)
 
         // Filter to only samples that pass coverage threshold, then join with assemblies
         ch_passing = CHECK_ANNOTATION_COVERAGE.out.result
@@ -482,7 +487,7 @@ workflow {
         BAKTA_ANNOTATE(ch_for_bakta)
 
         // Generate coverage check TSV for all samples
-        ch_quast_for_cov = QUAST.out.report
+        ch_quast_for_cov = QUAST_FINAL.out.report
             .map { sample_id, report -> report }
             .collect()
         ANNOTATION_COVERAGE_CHECK(ch_quast_for_cov)
@@ -569,7 +574,7 @@ workflow {
 
     // Build per-sample report input by joining key outputs
     ch_report_base = ch_final_assembly
-        .join(QUAST.out.report)
+        .join(QUAST_FINAL.out.report)
         .join(BLAST_OMPA.out.primary)
         .join(BLAST_OMPA.out.secondary)
         .join(MLST.out.generic)
@@ -608,7 +613,7 @@ workflow {
     // ---- STEP 13: Summary CSV and Batch Summary ----
     // Collect inputs for summary CSV
     ch_all_methods = ch_method_files.collect()
-    ch_all_quast = QUAST.out.report
+    ch_all_quast = QUAST_FINAL.out.report
         .map { sample_id, report -> report }
         .collect()
     ch_all_blast_tabs = BLAST_OMPA.out.primary
