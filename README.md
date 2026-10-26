@@ -173,7 +173,7 @@ All parameters can be set via command line (`--param value`) or in `nextflow.con
 | Parameter | Default | Description |
 |---|---|---|
 | `--annotation_enabled` | `true` | Run Bakta genome annotation |
-| `--ct_typing_enabled` | `false` | Run Mash + FastANI strain typing |
+| `--ct_typing_enabled` | `true` | Run Mash + FastANI strain typing |
 | `--mixed_detection_enabled` | `true` | Run mixed strain detection |
 | `--assembly_filter_enabled` | `true` | Filter non-Ct contigs from assemblies |
 
