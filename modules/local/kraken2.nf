@@ -32,6 +32,10 @@ process KRAKEN2_CLASSIFY {
         --output ${sample_id}.kraken2 \\
         --use-names
 
+    # Kraken2 may omit outputs when no reads are processed. Ensure the declared
+    # files exist after a successful run; a non-zero Kraken2 exit still fails the task.
+    touch ${sample_id}.kraken2 ${sample_id}.kraken2.report
+
     # Compact labels for KrakenTools (handle empty output)
     if [ -s ${sample_id}.kraken2 ]; then
         cut -f2,3 ${sample_id}.kraken2 > ${sample_id}.kraken2.labels

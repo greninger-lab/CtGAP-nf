@@ -17,8 +17,10 @@ This is a **Nextflow DSL2 adaptation** of [CtGAP v2.0](https://github.com/D-Dean
 CtGAP assembles *C. trachomatis* genomes from Illumina paired-end reads and performs:
 
 - **Automatic assembly selection** — runs both de novo and reference-guided assembly, scores each, picks the best per sample
+- **Pre-assembly coverage checks** — gates each requested assembly path at 10× mapped mean depth by default; routes low-coverage or empty-read samples to error reports
 - **Host read removal** — HoCoRT + Bowtie2 depletion of human reads
 - **Taxonomic filtering** — Kraken2 + KrakenTools extraction of Chlamydiales reads
+- **Optional read subsampling** — seqtk caps extracted Chlamydiales read pairs per sample
 - **Assembly** — Shovill/SPAdes + RagTag scaffolding + Gap2Seq gap filling
 - **Assembly filtering** — removes non-Ct contigs via minimap2
 - **ompA genotyping** — BLAST with secondary disambiguation (A/B/Ba/C)
@@ -128,15 +130,27 @@ nextflow run main.nf --input_csv samples.csv --outdir results/
 
 FASTQ paths in the CSV can be local paths, relative paths, or S3 URIs — Nextflow stages them automatically for each job (including AWS Batch). Only the reference databases and genomes need to be on the shared mount point.
 
-Or use glob-based input (files must be named `{sample}_R{1,2}.fastq.gz`):
+Or use glob-based input. Both `{sample}_R{1,2}.fastq.gz` and Illumina-style
+`{sample}_S##_L###_R{1,2}_001.fastq.gz` filenames are supported, including a mix
+of the two styles in the same directory:
 
 ```bash
 nextflow run main.nf --indir /path/to/fastqs/ --outdir results/
 ```
 
-> **Note:** By default, Illumina `_S##_L###` suffixes are stripped from sample names
-> (e.g. `CT_Cap_1_S31_L001` becomes `CT_Cap_1`). Use `--truncate_sample_names false`
-> to keep the original names.
+Read-mate suffixes (`_R1`/`_R2`, optionally followed by `_001`) and `.fastq.gz`
+are always excluded from sample IDs. By default, `--truncate_sample_names true`
+also removes trailing Illumina `_S##` or `_S##_L###` metadata:
+
+| Example FASTQ | Default sample ID | With `--truncate_sample_names false` |
+|---|---|---|
+| `CHIR-018C_S84_L001_R1_001.fastq.gz` | `CHIR-018C` | `CHIR-018C_S84_L001` |
+| `CHIR-030_S83_L001_R2_001.fastq.gz` | `CHIR-030` | `CHIR-030_S83_L001` |
+| `V402426844_R1.fastq.gz` | `V402426844` | `V402426844` |
+
+This applies only to glob-based input; CSV sample IDs are used as provided.
+Each resulting sample ID must be unique. If multiple pairs collapse to the same
+ID, the pipeline reports an error.
 
 ### 3. Assembly modes
 
@@ -151,6 +165,27 @@ nextflow run main.nf --input_csv samples.csv --mode denovo
 nextflow run main.nf --input_csv samples.csv --mode reference-denovo
 ```
 
+### 4. Limit reads in high-depth samples
+
+```bash
+nextflow run main.nf --input_csv samples.csv -profile docker --subsample 1000000
+```
+
+`--subsample` sets the maximum number of **read pairs per sample** after
+`EXTRACT_CHLAMYDIALES` (host removal and taxonomic filtering), before QC and assembly.
+For example, `--subsample 1000000` retains up to 1,000,000 pairs (1,000,000 reads
+in each of R1 and R2). Samples with fewer pairs retain all available pairs.
+Provide a positive integer; fractions and zero are not accepted. Omit the option
+to disable subsampling (the default).
+
+The nf-core [`seqtk/sample`](https://nf-co.re/modules/seqtk_sample) module samples
+both mates with the same fixed seed (`100`) to preserve pairing and make selection
+reproducible. Two-pass sampling (`-2`) reduces memory usage and preserves read order.
+QC and all downstream read-based analyses, including both assembly paths, plasmid
+analysis, and mixed strain detection, use the sampled reads. These FASTQs are
+published under `{outdir}/{sample}/subsample/`; the full extracted reads remain
+under `{outdir}/{sample}/scrub/`.
+
 ---
 
 ## Parameters
@@ -162,11 +197,11 @@ All parameters can be set via command line (`--param value`) or in `nextflow.con
 | Parameter | Default | Description |
 |---|---|---|
 | `--input_csv` | `null` | CSV samplesheet (columns: `sample`, `fastq_1`, `fastq_2`) |
-| `--indir` | `../input` | Directory with `*_R{1,2}.fastq.gz` files (used if no CSV) |
+| `--indir` | `../input` | Directory with `*_R{1,2}.fastq.gz` or `*_R{1,2}_001.fastq.gz` files (used if no CSV) |
 | `--outdir` | `../output` | Output directory |
 | `--mode` | `auto` | Assembly mode: `auto`, `denovo`, or `reference-denovo` |
 | `--organism` | `ct` | Organism code |
-| `--truncate_sample_names` | `true` | Strip Illumina `_S##_L###` suffixes from sample names (glob mode only) |
+| `--truncate_sample_names` | `true` | Remove trailing Illumina `_S##` or `_S##_L###` metadata from sample IDs; mate/file suffixes are always excluded (glob mode only) |
 
 ### Optional Features
 
@@ -176,6 +211,7 @@ All parameters can be set via command line (`--param value`) or in `nextflow.con
 | `--ct_typing_enabled` | `true` | Run Mash + FastANI strain typing |
 | `--mixed_detection_enabled` | `true` | Run mixed strain detection |
 | `--assembly_filter_enabled` | `true` | Filter non-Ct contigs from assemblies |
+| `--subsample` | `null` (disabled) | Maximum extracted Chlamydiales read pairs per sample; positive integer, applied before QC and downstream analyses |
 
 ### Database Paths
 
@@ -192,15 +228,64 @@ All parameters can be set via command line (`--param value`) or in `nextflow.con
 |---|---|---|
 | `--shovill_gsize` | `1.04m` | Expected genome size |
 | `--shovill_depth` | `200` | Shovill depth limit |
+| `--min_assembly_depth` | `10` | Minimum mapped mean depth (×) required before each Shovill assembly path |
 | `--ragtag_min_len` | `1000` | Minimum contig length for scaffolding |
 
 See `nextflow.config` for the full list of parameters.
+
+### Assembly Coverage Gate
+
+```bash
+nextflow run main.nf --input_csv samples.csv -profile docker --min_assembly_depth 10
+```
+
+Each requested assembly path must pass a coverage check before Shovill runs:
+
+- **De novo:** after `DENOVO_SAMTOOLS_REF24`, use the highest per-reference mean
+  depth from `samtools coverage` against the reference set. Unused references do
+  not dilute the depth by being averaged together.
+- **Reference-guided:** use coverage against the selected reference, calculated
+  by `REF_SAMTOOLS_NAMESORT`. After `BAMTOFASTQ`, also check the actual extracted
+  paired FASTQs destined for `REF_SHOVILL`, so an empty extraction is rejected
+  even if the alignment contained mapped reads.
+
+Depth must be at least `--min_assembly_depth` (default **10×**). Both mates must
+contain reads and have equal read counts. Header-only coverage is treated as zero
+depth. The threshold accepts finite, non-negative numbers; setting it to `0`
+removes the positive-depth requirement but still rejects empty or unbalanced pairs.
+Checks use post-subsampling reads when `--subsample` is enabled.
+The Python coverage-check helper is staged into each task's work directory by
+Nextflow, so coverage gates also run in remote AWS Batch containers.
+
+In `auto` mode, both passing paths are scored normally. If only one passes, its
+assembly is selected. In single-path modes, only that requested path is eligible.
+Samples with no passing requested path skip assembly and assembly-dependent
+analyses, including plasmid analysis, and receive error reports instead of a
+normal genome report. Other samples continue. Low coverage is a sample-level
+skip, while malformed FASTQs, invalid coverage files, and tool failures remain
+task failures.
+
+Coverage-check outputs are published directly, including when **all samples are
+skipped** and no final assembly output is created:
+
+- `01_per_sample/{sample}/{sample}.{path}.coverage_error.txt`: per-path error report.
+- `02_reports/errors/{sample}.{path}.coverage_error.txt`: copies of error reports.
+- `02_reports/summaries/assembly_coverage_checks.tsv`: all evaluated paths and metrics.
+- `02_reports/summaries/assembly_errors.tsv`: rejected paths and reasons.
+- `02_reports/summaries/assembly_coverage_summary.txt`: batch totals and samples
+  with all requested paths skipped.
+- `reports/coverage_checks/`: individual coverage-check TSVs.
+
+Reports include mapped depth, the reference used, reference breadth, the threshold,
+actual R1/R2 read counts, and reasons such as `NO_READ_PAIRS` or `LOW_MAPPED_DEPTH`.
 
 ---
 
 ## Output Structure
 
-After the pipeline completes, the `REORGANIZE` step creates a clean output structure:
+For samples that produce assemblies, the `REORGANIZE` step creates the output
+structure below. Coverage-check summaries and per-path error reports are published
+directly into the same numbered directories, even when all samples are skipped:
 
 ```
 output/
@@ -210,15 +295,20 @@ output/
 │       ├── assembly.fasta              # Best genome assembly
 │       ├── {sample}_ctgap_report.pdf   # Comprehensive report
 │       ├── {sample}_plasmid_report.pdf # Plasmid report
-│       └── {sample}.plasmid.fasta      # Plasmid assembly
+│       ├── {sample}.plasmid.fasta      # Plasmid assembly
+│       └── {sample}.{path}.coverage_error.txt # If an assembly path was skipped
 │
 ├── 02_reports/
 │   ├── per_sample/                     # Individual PDFs
+│   ├── errors/                         # Per-path coverage error reports
 │   ├── summaries/
 │   │   ├── ctgap_all_samples.csv       # Master summary
 │   │   ├── batch_summary.txt
 │   │   ├── assembly_methods.txt
 │   │   ├── mixed_detection_summary.tsv
+│   │   ├── assembly_coverage_checks.tsv # All evaluated paths and metrics
+│   │   ├── assembly_errors.tsv          # Rejected paths and reasons
+│   │   ├── assembly_coverage_summary.txt # Batch coverage-gate outcome
 │   │   └── assembly_selection/         # Per-sample method files
 │   └── qc/
 │       └── multiqc_report.html
@@ -240,11 +330,18 @@ output/
     └── annotation_report.txt
 ```
 
+`{path}` is `denovo` or `reference-denovo`. A sample with no eligible requested
+path receives coverage error reports instead of an assembly and normal genome
+report. A sample with one passing path in `auto` mode can have both a successful
+assembly and an error report for its rejected path.
+
 ---
 
 ## Assembly Selection Scoring (Auto Mode)
 
-When using `--mode auto`, CtGAP scores each assembly on a 0–100 scale:
+When using `--mode auto`, CtGAP scores each assembly on a 0–100 scale if both
+paths pass the pre-assembly coverage gate. If only one path passes, its assembly
+is selected without comparison; if neither passes, the sample is reported as skipped.
 
 | Metric | Weight | Full Score Criteria |
 |---|---|---|
@@ -263,10 +360,12 @@ De novo assembly is preferred in ties or close calls (within 2 points), as it in
 |---|---|---|
 | 1 | `FASTP` | Adapter trimming and quality filtering |
 | 2 | `HOCORT_DEPLETE`, `KRAKEN2_CLASSIFY`, `EXTRACT_CHLAMYDIALES` | Host removal + taxonomic filtering |
+| 2e | `SEQTK_SAMPLE` | Optional subsampling of extracted read pairs (`--subsample`) |
 | 3 | `FASTP_QC`, `MULTIQC` | Post-scrub QC reports |
 | 4 | `DENOVO_BOWTIE_ALIGN` → `DENOVO_SAMTOOLS_REF24`, `SHOVILL`, `SCAFFOLD`, `GAPFILLER`, `RENAME_CONTIGS`, `QUAST` | De novo assembly path |
+| 4b / 5e | `CHECK_DENOVO_COVERAGE`, `CHECK_REF_COVERAGE`, `ASSEMBLY_COVERAGE_SUMMARY` | Gate each requested assembly path on depth and read availability; report rejected paths |
 | 5 | `REF_BOWTIE_ALIGN` → `REF_SAMTOOLS_NAMESORT`, `REF_BOWTIE_REF24_ALIGN` → `REF_SAMTOOLS_REF24`, `BAMTOFASTQ`, `REF_SHOVILL`, `REF_SCAFFOLD`, `REF_GAPFILLER`, `REF_RENAME`, `REF_QUAST` | Reference-guided assembly path |
-| 6 | `SELECT_BEST_ASSEMBLY` / `COPY_BEST_ASSEMBLY` | Assembly selection (auto mode scores both, picks best) |
+| 6 | `SELECT_BEST_ASSEMBLY` / `COPY_BEST_ASSEMBLY` | Select the best eligible assembly; auto mode uses the sole passing path when the other is skipped |
 | 6b | `FILTER_INDEX_ASSEMBLY` → `FILTER_MINIMAP2_ALIGN` → `FILTER_APPLY_CONTIGS` | Remove non-Ct contigs (optional) |
 | 6c | `QUAST_FINAL` | QUAST on final (post-selection, post-filter) assembly for accurate report metrics |
 | 7 | `BLAST_OMPA`, `MLST`, `SKA_ALIGNMENT`, `IQTREE` | Typing + phylogenetics |
@@ -337,5 +436,35 @@ If running locally, use the `-profile local` to override database paths to local
 
 Check the per-sample PDF report for coverage statistics. Low input depth (<10x) affects assembly contiguity.
 
+### No reads remaining after host depletion
+
+If Kraken2 completes successfully without producing classification records or a
+report, the pipeline creates empty output files so `KRAKEN2_CLASSIFY` can emit its
+required outputs. With no classification records, `EXTRACT_CHLAMYDIALES` skips
+KrakenTools and produces valid empty gzip-compressed FASTQs. These steps therefore
+handle samples with no remaining reads; the assembly coverage gates then route
+those samples to error reports. A non-zero Kraken2 exit remains a task failure.
+
+### Shovill fails or produces no contigs
+
+`SHOVILL` and `REF_SHOVILL` preserve Shovill's exit status when logging through
+`tee` and require a non-empty `shovill_tmp/contigs.fa` before publishing an assembly.
+If a task fails, inspect `shovill.log` and `.command.out` in the task's Nextflow
+work directory for the underlying Shovill/SPAdes error. Check that the input
+FASTQs contain enough usable read pairs. The earlier error
+`mv: can't rename 'shovill_tmp/contigs.fa': No such file or directory` can be a
+secondary symptom of an assembly failure; the wrappers now stop at that failure
+or report explicitly that no contigs were produced.
+
 ---
 
+## Coverage Gate Checks
+
+Run the Python metric checks and synthetic Nextflow routing tests from the
+repository root (the routing tests do not run a real assembler or require databases):
+
+```bash
+python3 -B -m unittest discover -s tests -v
+nextflow run tests/assembly_routing.nf --outdir coverage-test-output
+nextflow run tests/assembly_routing.nf --all_rejected true --outdir coverage-test-empty-output
+```

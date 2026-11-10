@@ -23,6 +23,9 @@ process SHOVILL {
 
     script:
     """
+    # Preserve Shovill's exit status when logging through tee.
+    set -o pipefail
+
     shovill \\
         --R1 ${r1} \\
         --R2 ${r2} \\
@@ -31,6 +34,11 @@ process SHOVILL {
         --depth ${params.shovill_depth} \\
         --force \\
         --cpus ${task.cpus} 2>&1 | tee shovill.log
+
+    if [ ! -s shovill_tmp/contigs.fa ]; then
+        printf '%s\\n' 'SHOVILL: no non-empty contigs.fa was produced for ${sample_id}; inspect shovill.log and the input read counts.' >&2
+        exit 1
+    fi
 
     # Move outputs to working dir for publishDir
     mv shovill_tmp/contigs.fa .

@@ -1,0 +1,17 @@
+{
+    "name": "CtGAP-nf",
+    "homePage": "https://github.com/nf-core/modules",
+    "repos": {
+        "https://github.com/nf-core/modules.git": {
+            "modules": {
+                "nf-core": {
+                    "seqtk/sample": {
+                        "branch": "master",
+                        "git_sha": "8c85bdda419ef3299a82f8e063146d10bbcbcd74",
+                        "installed_by": ["modules"]
+                    }
+                }
+            }
+        }
+    }
+}

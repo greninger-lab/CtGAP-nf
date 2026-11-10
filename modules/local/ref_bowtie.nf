@@ -46,14 +46,22 @@ process REF_SAMTOOLS_SORT {
     output:
     tuple val(sample_id), path("${sample_id}.bam"),          emit: bam
     tuple val(sample_id), path("${sample_id}.flagstat.txt"), emit: flagstat
+    tuple val(sample_id), path("${sample_id}.coverage.ref.tsv"), emit: coverage
 
     script:
     """
+    set -o pipefail
+
     samtools view -bSh ${sam} | \\
         samtools sort -n -@${task.cpus} \\
         -o ${sample_id}.bam
 
     samtools flagstat ${sample_id}.bam > ${sample_id}.flagstat.txt
+
+    # Coverage must use coordinate order, while BAMTOFASTQ needs the name-sorted BAM above.
+    samtools sort -@${task.cpus} -o coverage.bam ${sample_id}.bam
+    samtools coverage coverage.bam > ${sample_id}.coverage.ref.tsv
+    rm -f coverage.bam
 
     # Check if any reads mapped
     mapped=\$(grep "mapped (" ${sample_id}.flagstat.txt | head -1 | awk '{print \$1}')

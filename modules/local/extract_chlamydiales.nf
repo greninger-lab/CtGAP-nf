@@ -28,15 +28,19 @@ process EXTRACT_CHLAMYDIALES {
     tmp1=\$(mktemp)
     tmp2=\$(mktemp)
 
-    python3 /usr/share/KrakenTools/extract_kraken_reads.py \\
-        -k ${k2_output} \\
-        --report ${k2_report} \\
-        -s ${r1} -s2 ${r2} \\
-        -o "\$tmp1" -o2 "\$tmp2" \\
-        -t ${params.chlamydiales_taxid} \\
-        --include-children \\
-        --include-parents \\
-        --fastq-output
+    # With no classification records there are no reads to extract. KrakenTools
+    # rejects empty FASTQ inputs, so retain the empty temporary files in this case.
+    if [ -s ${k2_output} ]; then
+        python3 /usr/share/KrakenTools/extract_kraken_reads.py \\
+            -k ${k2_output} \\
+            --report ${k2_report} \\
+            -s ${r1} -s2 ${r2} \\
+            -o "\$tmp1" -o2 "\$tmp2" \\
+            -t ${params.chlamydiales_taxid} \\
+            --include-children \\
+            --include-parents \\
+            --fastq-output
+    fi
 
     gzip -c "\$tmp1" > ${sample_id}_trim_scrub_R1.fastq.gz
     gzip -c "\$tmp2" > ${sample_id}_trim_scrub_R2.fastq.gz

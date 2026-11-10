@@ -18,7 +18,7 @@ process SELECT_BEST_ASSEMBLY {
     publishDir "${params.outdir}/reports/assembly_selection",             mode: 'copy', pattern: '*.txt'
 
     input:
-    tuple val(sample_id), path(denovo_assembly), path(refguided_assembly), path(denovo_quast), path(refguided_quast)
+    tuple val(sample_id), path(denovo_assembly, stageAs: 'denovo_assembly/*'), path(refguided_assembly, stageAs: 'ref_assembly/*'), path(denovo_quast, stageAs: 'denovo_quast/*'), path(refguided_quast, stageAs: 'ref_quast/*')
 
     output:
     tuple val(sample_id), path("${sample_id}.assembly.fasta"),       emit: assembly
@@ -91,17 +91,27 @@ process SELECT_BEST_ASSEMBLY {
 
         return round(score, 2)
 
-    denovo_stats = parse_quast("${denovo_quast}")
-    refguided_stats = parse_quast("${refguided_quast}")
+    denovo_available = os.path.basename("${denovo_assembly}") != 'NO_FILE'
+    refguided_available = os.path.basename("${refguided_assembly}") != 'NO_FILE'
+    denovo_stats = parse_quast("${denovo_quast}") if denovo_available else {}
+    refguided_stats = parse_quast("${refguided_quast}") if refguided_available else {}
 
-    denovo_score = score_assembly(denovo_stats)
-    refguided_score = score_assembly(refguided_stats)
+    denovo_score = score_assembly(denovo_stats) if denovo_available else 0
+    refguided_score = score_assembly(refguided_stats) if refguided_available else 0
 
     # Minimum margin required for ref-denovo to win
     # De novo is less biased, so prefer it in ties/close calls
     MIN_MARGIN_FOR_REFGUIDED = 2.0
 
-    if refguided_score >= denovo_score + MIN_MARGIN_FOR_REFGUIDED:
+    if not denovo_available and not refguided_available:
+        raise RuntimeError('No eligible assembly available for ${sample_id}')
+    elif not refguided_available:
+        method = "denovo"
+        selection_reason = "Only de novo passed the assembly coverage gate"
+    elif not denovo_available:
+        method = "reference-denovo"
+        selection_reason = "Only reference-guided passed the assembly coverage gate"
+    elif refguided_score >= denovo_score + MIN_MARGIN_FOR_REFGUIDED:
         method = "reference-denovo"
         selection_reason = f"ref-denovo wins by {refguided_score - denovo_score:.2f} points (>= {MIN_MARGIN_FOR_REFGUIDED} margin)"
     else:
@@ -119,12 +129,14 @@ process SELECT_BEST_ASSEMBLY {
         report.write(f"SELECTED: {method} (Score: {denovo_score if method == 'denovo' else refguided_score:.2f})\\n")
         report.write(f"Reason: {selection_reason}\\n\\n")
         report.write(f"De Novo Assembly:\\n")
+        report.write(f"  Available: {denovo_available}\\n")
         report.write(f"  Score: {denovo_score:.2f}\\n")
         report.write(f"  N50: {denovo_stats.get('N50', 'N/A')} bp\\n")
         report.write(f"  Contigs: {denovo_stats.get('# contigs', 'N/A')}\\n")
         report.write(f"  Length: {denovo_stats.get('Total length', 'N/A')} bp\\n")
         report.write(f"  GC%: {denovo_stats.get('GC (%)', 'N/A')}\\n\\n")
         report.write(f"Reference-Guided Assembly:\\n")
+        report.write(f"  Available: {refguided_available}\\n")
         report.write(f"  Score: {refguided_score:.2f}\\n")
         report.write(f"  N50: {refguided_stats.get('N50', 'N/A')} bp\\n")
         report.write(f"  Contigs: {refguided_stats.get('# contigs', 'N/A')}\\n")

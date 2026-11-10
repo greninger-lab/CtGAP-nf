@@ -17,6 +17,18 @@ nextflow.enable.dsl = 2
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
+// --subsample is an absolute read-pair count, not a sampling fraction.
+if (params.subsample != null &&
+    (!(params.subsample.toString() ==~ /[1-9][0-9]*/) || !params.subsample.toString().isLong())) {
+    error "--subsample must be a positive integer number of read pairs (e.g. --subsample 1000000)"
+}
+
+// Validate the pre-assembly coverage threshold.
+if (params.min_assembly_depth instanceof Boolean || !params.min_assembly_depth.toString().isDouble() ||
+    !Double.isFinite(params.min_assembly_depth.toString().toDouble()) || params.min_assembly_depth.toString().toDouble() < 0) {
+    error "--min_assembly_depth must be a finite, non-negative number (e.g. --min_assembly_depth 10)"
+}
+
 // Print pipeline header
 log.info """\
     ===============================================
@@ -30,6 +42,8 @@ log.info """\
     reference    : ${params.reference}
     host ref     : ${params.host_reference}
     truncate IDs : ${params.truncate_sample_names}
+    subsample    : ${params.subsample ?: 'disabled'}
+    min depth    : ${params.min_assembly_depth}x
     ===============================================
     """.stripIndent()
 
@@ -43,11 +57,13 @@ include { FASTP                } from './modules/local/fastp'
 include { HOCORT_DEPLETE       } from './modules/local/hocort_deplete'
 include { KRAKEN2_CLASSIFY     } from './modules/local/kraken2'
 include { EXTRACT_CHLAMYDIALES } from './modules/local/extract_chlamydiales'
+include { SEQTK_SAMPLE         } from './modules/nf-core/seqtk/sample/main'
 include { FASTP_QC             } from './modules/local/fastp_qc'
 include { MULTIQC              } from './modules/local/multiqc'
 include { DENOVO_BOWTIE_ALIGN    } from './modules/local/denovo_bowtie_ref24'
 include { DENOVO_SAMTOOLS_REF24  } from './modules/local/denovo_bowtie_ref24'
 include { SHOVILL              } from './modules/local/shovill'
+include { CHECK_ASSEMBLY_COVERAGE as CHECK_DENOVO_COVERAGE; CHECK_ASSEMBLY_COVERAGE as CHECK_REF_COVERAGE; ASSEMBLY_COVERAGE_SUMMARY } from './modules/local/assembly_coverage'
 include { SCAFFOLD             } from './modules/local/scaffold'
 include { GAPFILLER            } from './modules/local/gapfiller'
 include { RENAME_CONTIGS       } from './modules/local/rename_contigs'
@@ -155,15 +171,15 @@ workflow {
                 tuple(sample_id, r1_list[0], r2_list[0])
             }
     } else {
-        // Glob-based input: expects {sample}_R{1,2}.fastq.gz in params.indir
+        // Glob-based input: accept both {sample}_R{1,2}.fastq.gz and Illumina _R{1,2}_001.fastq.gz.
         ch_reads = Channel
-            .fromFilePairs("${params.indir}/*_R{1,2}.fastq.gz", size: 2)
-            .ifEmpty { error "No paired FASTQ files found in ${params.indir} matching *_R{1,2}.fastq.gz" }
+            .fromFilePairs("${params.indir}/*_R{1,2}{,_001}.fastq.gz", size: 2)
+            .ifEmpty { error "No paired FASTQ files found in ${params.indir} matching *_R{1,2}.fastq.gz or *_R{1,2}_001.fastq.gz" }
             .map { sample_id, reads ->
                 if (reads.size() != 2) {
                     error "Expected paired-end files (R1 and R2) for sample '${sample_id}', but found ${reads.size()} file(s)"
                 }
-                // Optionally strip Illumina _S##_L### suffixes from sample names
+                // Pair discovery removes _R1/_R2 and optional _001; optionally strip _S##_L###.
                 def clean_id = sample_id
                 if (params.truncate_sample_names) {
                     clean_id = sample_id.replaceAll(/_S\d+(_L\d+)?$/, '')
@@ -209,8 +225,18 @@ workflow {
         }
     EXTRACT_CHLAMYDIALES(ch_for_extract)
 
-    // Expose scrubbed reads for downstream steps
-    ch_scrubbed = EXTRACT_CHLAMYDIALES.out.reads
+    // 2e. Optionally cap extracted read pairs before QC and all downstream analyses.
+    if (params.subsample != null) {
+        SEQTK_SAMPLE(EXTRACT_CHLAMYDIALES.out.reads.map { sample_id, r1, r2 ->
+            tuple([id: sample_id, single_end: false], [r1, r2], params.subsample.toString().toLong())
+        })
+        ch_scrubbed = SEQTK_SAMPLE.out.reads.map { meta, reads ->
+            def paired_reads = reads.sort { it.name }
+            tuple(meta.id, paired_reads[0], paired_reads[1])
+        }
+    } else {
+        ch_scrubbed = EXTRACT_CHLAMYDIALES.out.reads
+    }
 
     // ---- STEP 3: QC on scrubbed reads ----
     // 3a. Per-sample fastp QC (report only, no trimming)
@@ -224,8 +250,22 @@ workflow {
     DENOVO_BOWTIE_ALIGN(ch_scrubbed)
     DENOVO_SAMTOOLS_REF24(DENOVO_BOWTIE_ALIGN.out.sam)
 
-    // 4c. De novo assembly with Shovill
-    SHOVILL(ch_scrubbed)
+    // 4b. Gate de novo assembly on mapped depth before starting Shovill.
+    // Stage the helper into task work directories, including remote AWS Batch tasks.
+    ch_coverage_checker = Channel.value(file("${projectDir}/bin/check_assembly_coverage.py", checkIfExists: true))
+    if (params.mode != 'reference-denovo') {
+        CHECK_DENOVO_COVERAGE(ch_scrubbed.join(DENOVO_SAMTOOLS_REF24.out.coverage), 'denovo', ch_coverage_checker)
+        ch_denovo_eligible = ch_scrubbed.join(CHECK_DENOVO_COVERAGE.out.decision)
+            .filter { sample_id, r1, r2, passes -> passes == 'true' }
+            .map { sample_id, r1, r2, passes -> tuple(sample_id, r1, r2) }
+        ch_denovo_checks = CHECK_DENOVO_COVERAGE.out.metrics
+    } else {
+        ch_denovo_eligible = Channel.empty()
+        ch_denovo_checks = Channel.empty()
+    }
+
+    // 4c. De novo assembly with Shovill (passing samples only)
+    SHOVILL(ch_denovo_eligible)
 
     // 4d. Scaffold contigs with RagTag
     SCAFFOLD(SHOVILL.out.contigs)
@@ -276,8 +316,13 @@ workflow {
         // 5d. Extract aligned reads as FASTQ
         BAMTOFASTQ(REF_SAMTOOLS_NAMESORT.out.bam)
 
-        // 5e. Assemble extracted reads with Shovill
-        REF_SHOVILL(BAMTOFASTQ.out.reads)
+        // 5e. Gate on coverage against the actual selected reference AND extracted read availability.
+        CHECK_REF_COVERAGE(BAMTOFASTQ.out.reads.join(REF_SAMTOOLS_NAMESORT.out.coverage), 'reference-denovo', ch_coverage_checker)
+        ch_ref_eligible = BAMTOFASTQ.out.reads.join(CHECK_REF_COVERAGE.out.decision)
+            .filter { sample_id, r1, r2, passes -> passes == 'true' }
+            .map { sample_id, r1, r2, passes -> tuple(sample_id, r1, r2) }
+        REF_SHOVILL(ch_ref_eligible)
+        ch_ref_checks = CHECK_REF_COVERAGE.out.metrics
 
         // 5f. Scaffold with RagTag
         REF_SCAFFOLD(REF_SHOVILL.out.contigs)
@@ -314,17 +359,27 @@ workflow {
         REF_SCAFFOLD_SUMMARY(REF_SCAFFOLD.out.result.collect())
 
         ch_refguided_assembly = REF_RENAME.out.assembly
+    } else {
+        ch_ref_checks = Channel.empty()
     }
+
+    // These reports are emitted even when every sample is rejected and no assemblies are produced.
+    ASSEMBLY_COVERAGE_SUMMARY(ch_denovo_checks.mix(ch_ref_checks).collect())
 
     // ---- STEP 6: Select best assembly ----
     if (params.mode == 'auto') {
-        // Join denovo and ref-guided assemblies + their QUAST reports by sample_id
-        ch_for_select = ch_denovo_assembly
-            .join(ch_refguided_assembly)
-            .join(QUAST.out.report)
-            .join(REF_QUAST.out.report)
-            .map { sample_id, denovo_asm, refguided_asm, denovo_quast, refguided_quast ->
-                tuple(sample_id, denovo_asm, refguided_asm, denovo_quast, refguided_quast)
+        // Group available candidates so a sample with only one eligible path is retained.
+        ch_for_select = ch_denovo_assembly.join(QUAST.out.report)
+            .map { sample_id, asm, quast -> tuple(sample_id, 'denovo', asm, quast) }
+            .mix(ch_refguided_assembly.join(REF_QUAST.out.report)
+                .map { sample_id, asm, quast -> tuple(sample_id, 'reference-denovo', asm, quast) })
+            .groupTuple()
+            .map { sample_id, methods, assemblies, reports ->
+                def d = methods.indexOf('denovo')
+                def r = methods.indexOf('reference-denovo')
+                def absent = file("${projectDir}/assets/NO_FILE")
+                tuple(sample_id, d >= 0 ? assemblies[d] : absent, r >= 0 ? assemblies[r] : absent,
+                      d >= 0 ? reports[d] : absent, r >= 0 ? reports[r] : absent)
             }
         SELECT_BEST_ASSEMBLY(ch_for_select)
         ch_best_assembly = SELECT_BEST_ASSEMBLY.out.assembly
@@ -422,7 +477,8 @@ workflow {
 
     // ---- STEP 9: Dedicated Plasmid Assembly ----
     // 9a. Align scrubbed reads to reference plasmid (uses pre-built bt2 index from mount)
-    PLASMID_BOWTIE_ALIGN(ch_scrubbed)
+    ch_analysis_reads = ch_scrubbed.join(ch_best_assembly.map { sample_id, assembly -> tuple(sample_id) })
+    PLASMID_BOWTIE_ALIGN(ch_analysis_reads)
     PLASMID_SAMTOOLS_SORT(PLASMID_BOWTIE_ALIGN.out.sam)
 
     // 9c. Extract plasmid read pairs
