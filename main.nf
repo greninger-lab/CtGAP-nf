@@ -29,6 +29,11 @@ if (params.min_assembly_depth instanceof Boolean || !params.min_assembly_depth.t
     error "--min_assembly_depth must be a finite, non-negative number (e.g. --min_assembly_depth 10)"
 }
 
+// Match the final-assembly gate to QUAST's minimum contig length.
+if (!(params.quast_min_contig.toString() ==~ /[1-9][0-9]*/) || !params.quast_min_contig.toString().isInteger()) {
+    error "--quast_min_contig must be a positive integer (default: 500 bp)"
+}
+
 // Print pipeline header
 log.info """\
     ===============================================
@@ -69,6 +74,7 @@ include { GAPFILLER            } from './modules/local/gapfiller'
 include { RENAME_CONTIGS       } from './modules/local/rename_contigs'
 include { QUAST                } from './modules/local/quast'
 include { QUAST as QUAST_FINAL } from './modules/local/quast'
+include { CHECK_FINAL_ASSEMBLY; FINAL_ASSEMBLY_SUMMARY } from './modules/local/final_assembly_check'
 include { DENOVO_COLLATE_COVERAGE } from './modules/local/denovo_collate'
 include { DENOVO_COLLATE_FLAGSTAT } from './modules/local/denovo_collate'
 include { SCAFFOLD_SUMMARY        } from './modules/local/denovo_collate'
@@ -399,9 +405,6 @@ workflow {
         error "Invalid mode '${params.mode}'. Must be: auto, denovo, or reference-denovo"
     }
 
-    // 6b. Assembly method summary
-    ASSEMBLY_METHOD_SUMMARY(ch_method_files.collect(), params.mode)
-
     // ---- STEP 6b: Assembly filtering (optional) ----
     if (params.assembly_filter_enabled) {
         FILTER_INDEX_ASSEMBLY(ch_best_assembly)
@@ -409,13 +412,29 @@ workflow {
         FILTER_APPLY_CONTIGS(FILTER_MINIMAP2_ALIGN.out.aligned)
 
         // Use filtered assembly for downstream
-        ch_final_assembly = FILTER_APPLY_CONTIGS.out.assembly
+        ch_final_candidates = FILTER_APPLY_CONTIGS.out.assembly
 
         // Collate filter reports
         FILTER_SUMMARY(FILTER_APPLY_CONTIGS.out.report.collect())
     } else {
-        ch_final_assembly = ch_best_assembly
+        ch_final_candidates = ch_best_assembly
     }
+
+    // Reject final assemblies with no contigs meeting QUAST's cutoff (including after filtering).
+    ch_final_checker = Channel.value(file("${projectDir}/bin/check_final_assembly.py", checkIfExists: true))
+    CHECK_FINAL_ASSEMBLY(ch_final_candidates, ch_final_checker)
+    ch_final_assembly = ch_final_candidates.join(CHECK_FINAL_ASSEMBLY.out.decision)
+        .filter { sample_id, assembly, passes -> passes == 'true' }
+        .map { sample_id, assembly, passes -> tuple(sample_id, assembly) }
+    FINAL_ASSEMBLY_SUMMARY(CHECK_FINAL_ASSEMBLY.out.metrics.collect())
+
+    // Normal reports and summaries should include only samples passing final assembly QC.
+    ch_valid_methods = ch_method_files
+        .map { method -> tuple(method.name.toString().replace('.method.txt', ''), method) }
+        .join(ch_final_assembly.map { sample_id, assembly -> tuple(sample_id) })
+        .map { sample_id, method -> method }
+    ch_method_files = ch_valid_methods
+    ASSEMBLY_METHOD_SUMMARY(ch_method_files.collect(), params.mode)
 
     // ---- STEP 6c: QUAST on final assembly (for accurate report metrics) ----
     // Run QUAST on the post-filter best assembly so report metrics match the actual output
@@ -477,7 +496,7 @@ workflow {
 
     // ---- STEP 9: Dedicated Plasmid Assembly ----
     // 9a. Align scrubbed reads to reference plasmid (uses pre-built bt2 index from mount)
-    ch_analysis_reads = ch_scrubbed.join(ch_best_assembly.map { sample_id, assembly -> tuple(sample_id) })
+    ch_analysis_reads = ch_scrubbed.join(ch_final_assembly.map { sample_id, assembly -> tuple(sample_id) })
     PLASMID_BOWTIE_ALIGN(ch_analysis_reads)
     PLASMID_SAMTOOLS_SORT(PLASMID_BOWTIE_ALIGN.out.sam)
 

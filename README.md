@@ -229,6 +229,7 @@ All parameters can be set via command line (`--param value`) or in `nextflow.con
 | `--shovill_gsize` | `1.04m` | Expected genome size |
 | `--shovill_depth` | `200` | Shovill depth limit |
 | `--min_assembly_depth` | `10` | Minimum mapped mean depth (×) required before each Shovill assembly path |
+| `--quast_min_contig` | `500` | Minimum contig length (bp) used by QUAST and the final-assembly gate |
 | `--ragtag_min_len` | `1000` | Minimum contig length for scaffolding |
 
 See `nextflow.config` for the full list of parameters.
@@ -279,6 +280,30 @@ skipped** and no final assembly output is created:
 Reports include mapped depth, the reference used, reference breadth, the threshold,
 actual R1/R2 read counts, and reasons such as `NO_READ_PAIRS` or `LOW_MAPPED_DEPTH`.
 
+### Final Assembly Length Gate
+
+After assembly selection and optional contig filtering, `CHECK_FINAL_ASSEMBLY`
+requires at least one contig of **500 bp or longer**, matching QUAST's default
+cutoff. A collection of shorter contigs does not pass, even if their combined
+length exceeds 500 bp. The shared cutoff is controlled by `--quast_min_contig`
+(a positive integer, default `500`).
+
+Samples without an eligible contig are skipped before `QUAST_FINAL`, typing,
+annotation, mixed detection, and plasmid analysis. They are excluded from normal
+genome reports and successful-sample summaries; passing samples continue.
+The rejected assembly and its filtering report remain available for investigation.
+
+- `01_per_sample/{sample}/{sample}.final_assembly_error.txt`: per-sample error report.
+- `02_reports/errors/{sample}.final_assembly_error.txt`: copies of those reports.
+- `02_reports/summaries/final_assembly_checks.tsv`: metrics for all final assemblies checked.
+- `02_reports/summaries/final_assembly_errors.tsv`: rejected samples with reason
+  `NO_CONTIGS_ABOVE_MIN_LENGTH`, contig counts, total bases, longest contig, and cutoff.
+- `reports/assembly_checks/`: individual check TSVs.
+
+These error reports are published even if every final assembly is rejected.
+Successful final QUAST outputs, including `quast.log`, are published under
+`{outdir}/{sample}/final/assembly_statistics/`.
+
 ---
 
 ## Output Structure
@@ -296,11 +321,12 @@ output/
 │       ├── {sample}_ctgap_report.pdf   # Comprehensive report
 │       ├── {sample}_plasmid_report.pdf # Plasmid report
 │       ├── {sample}.plasmid.fasta      # Plasmid assembly
-│       └── {sample}.{path}.coverage_error.txt # If an assembly path was skipped
+│       ├── {sample}.{path}.coverage_error.txt # If an assembly path was skipped
+│       └── {sample}.final_assembly_error.txt # If final contigs were all too short
 │
 ├── 02_reports/
 │   ├── per_sample/                     # Individual PDFs
-│   ├── errors/                         # Per-path coverage error reports
+│   ├── errors/                         # Coverage and final-assembly error reports
 │   ├── summaries/
 │   │   ├── ctgap_all_samples.csv       # Master summary
 │   │   ├── batch_summary.txt
@@ -309,6 +335,8 @@ output/
 │   │   ├── assembly_coverage_checks.tsv # All evaluated paths and metrics
 │   │   ├── assembly_errors.tsv          # Rejected paths and reasons
 │   │   ├── assembly_coverage_summary.txt # Batch coverage-gate outcome
+│   │   ├── final_assembly_checks.tsv    # Final contig-length QC metrics
+│   │   ├── final_assembly_errors.tsv    # Final assemblies rejected before QUAST
 │   │   └── assembly_selection/         # Per-sample method files
 │   └── qc/
 │       └── multiqc_report.html
@@ -368,6 +396,7 @@ De novo assembly is preferred in ties or close calls (within 2 points), as it in
 | 6 | `SELECT_BEST_ASSEMBLY` / `COPY_BEST_ASSEMBLY` | Select the best eligible assembly; auto mode uses the sole passing path when the other is skipped |
 | 6b | `FILTER_INDEX_ASSEMBLY` → `FILTER_MINIMAP2_ALIGN` → `FILTER_APPLY_CONTIGS` | Remove non-Ct contigs (optional) |
 | 6c | `QUAST_FINAL` | QUAST on final (post-selection, post-filter) assembly for accurate report metrics |
+| 6c (gate) | `CHECK_FINAL_ASSEMBLY`, `FINAL_ASSEMBLY_SUMMARY` | Check final contig lengths before QUAST; report rejected samples |
 | 7 | `BLAST_OMPA`, `MLST`, `SKA_ALIGNMENT`, `IQTREE` | Typing + phylogenetics |
 | 8 | `CT_MASH_DIST`, `CT_FASTANI`, `CT_ASSIGN` | Ct strain typing (optional) |
 | 9 | `PLASMID_BOWTIE_ALIGN` → `PLASMID_SAMTOOLS_SORT`, `EXTRACT_PLASMID_READS`, `UNICYCLER_PLASMID`, `ANALYZE_PLASMID`, `REORIENT_PLASMID`, `BLAST_PLASMID`, `MLST_PLASMID`, `PLASMID_REPORT` | Dedicated plasmid assembly |
@@ -458,6 +487,18 @@ or report explicitly that no contigs were produced.
 
 ---
 
+### QUAST fails or produces no report
+
+The QUAST wrappers, including `QUAST_FINAL`, preserve QUAST's exit status when
+logging through `tee` and require a non-empty `quast_out/report.tsv`. The error
+`cp: cannot stat 'quast_out/report.tsv'` can be a secondary symptom of a QUAST
+failure. Inspect `quast.log`, `quast_out/quast.log` (if created), and `.command.out`
+in the failed task's Nextflow work directory for the underlying error. Check the
+assembly contig lengths: QUAST's default minimum contig length is 500 bp, and it
+cannot evaluate an assembly with no contigs meeting its cutoff. The final-assembly
+gate routes such samples to error reports before `QUAST_FINAL`. The HTML report
+is optional; the TSV remains required for assembly selection and reporting.
+
 ## Coverage Gate Checks
 
 Run the Python metric checks and synthetic Nextflow routing tests from the
@@ -467,4 +508,9 @@ repository root (the routing tests do not run a real assembler or require databa
 python3 -B -m unittest discover -s tests -v
 nextflow run tests/assembly_routing.nf --outdir coverage-test-output
 nextflow run tests/assembly_routing.nf --all_rejected true --outdir coverage-test-empty-output
+nextflow run tests/final_assembly_routing.nf -c tests/final_assembly_routing.config --outdir final-assembly-test-output
+nextflow run tests/final_assembly_routing.nf -c tests/final_assembly_routing.config --all_rejected true --outdir final-assembly-test-empty-output
 ```
+
+The final-assembly routing configuration uses a QUAST stand-in to verify that
+short and empty assemblies never reach QUAST or normal method summaries.
