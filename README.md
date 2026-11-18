@@ -499,6 +499,16 @@ cannot evaluate an assembly with no contigs meeting its cutoff. The final-assemb
 gate routes such samples to error reports before `QUAST_FINAL`. The HTML report
 is optional; the TSV remains required for assembly selection and reporting.
 
+### No samples qualify for annotation
+
+When annotation is enabled but no samples pass its coverage threshold, the
+pipeline still writes `reports/annotation_summary.tsv` (header only) and
+`reports/annotation_report.txt` (zero annotated samples plus the coverage check
+results). The committed `assets/NO_FILE` placeholder is staged by Nextflow for
+empty-result inputs, including AWS Batch tasks. No local `NO_ANNOTATIONS` file
+needs to be created. If the final output reorganization runs, these reports are
+also copied into `05_annotation/`.
+
 ## Coverage Gate Checks
 
 Run the Python metric checks and synthetic Nextflow routing tests from the
@@ -510,6 +520,8 @@ nextflow run tests/assembly_routing.nf --outdir coverage-test-output
 nextflow run tests/assembly_routing.nf --all_rejected true --outdir coverage-test-empty-output
 nextflow run tests/final_assembly_routing.nf -c tests/final_assembly_routing.config --outdir final-assembly-test-output
 nextflow run tests/final_assembly_routing.nf -c tests/final_assembly_routing.config --all_rejected true --outdir final-assembly-test-empty-output
+nextflow run tests/annotation_summary.nf --outdir annotation-summary-test-empty-output
+nextflow run tests/annotation_summary.nf --annotated true --outdir annotation-summary-test-output
 ```
 
 The final-assembly routing configuration uses a QUAST stand-in to verify that

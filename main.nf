@@ -142,6 +142,9 @@ include { REORGANIZE               } from './modules/local/reorganize'
 
 workflow {
 
+    // Real, committed placeholder: Nextflow stages it into local and remote tasks.
+    def no_file = file("${projectDir}/assets/NO_FILE", checkIfExists: true)
+
     // ---- Build input channel from paired FASTQ files ----
     if (params.input_csv) {
         // CSV input with header row: sample,fastq_1,fastq_2
@@ -571,7 +574,7 @@ workflow {
         ch_annotation_txts = BAKTA_ANNOTATE.out.txt
             .map { sample_id, txt -> txt }
             .collect()
-            .ifEmpty { file('NO_ANNOTATIONS') }
+            .ifEmpty { no_file }
 
         ANNOTATION_SUMMARY(ch_annotation_txts, ANNOTATION_COVERAGE_CHECK.out.coverage_check)
     }
@@ -733,7 +736,7 @@ workflow {
                 : Channel.empty()
         )
         .collect()
-        .ifEmpty { file('NO_COVERAGE') }
+        .ifEmpty { no_file }
 
     // Collect scaffold summaries
     ch_scaffold_summaries = SCAFFOLD_SUMMARY.out.report
@@ -743,7 +746,7 @@ workflow {
                 : Channel.empty()
         )
         .collect()
-        .ifEmpty { file('NO_SCAFFOLD_SUMMARIES') }
+        .ifEmpty { no_file }
 
     // Collect alignment summaries
     ch_alignment_summaries = DENOVO_COLLATE_FLAGSTAT.out.summary
@@ -753,7 +756,7 @@ workflow {
                 : Channel.empty()
         )
         .collect()
-        .ifEmpty { file('NO_ALIGNMENT_SUMMARIES') }
+        .ifEmpty { no_file }
 
     // Annotation outputs (conditional)
     if (params.annotation_enabled) {
@@ -761,9 +764,9 @@ workflow {
         ch_annotation_report_file  = ANNOTATION_SUMMARY.out.report
         ch_annotation_coverage_file = ANNOTATION_COVERAGE_CHECK.out.coverage_check
     } else {
-        ch_annotation_summary_file = Channel.fromPath("${projectDir}/assets/NO_FILE", checkIfExists: false).ifEmpty(file('NO_ANNOTATION_SUMMARY'))
-        ch_annotation_report_file  = Channel.fromPath("${projectDir}/assets/NO_FILE", checkIfExists: false).ifEmpty(file('NO_ANNOTATION_REPORT'))
-        ch_annotation_coverage_file = Channel.fromPath("${projectDir}/assets/NO_FILE", checkIfExists: false).ifEmpty(file('NO_ANNOTATION_COVERAGE'))
+        ch_annotation_summary_file = Channel.value(no_file)
+        ch_annotation_report_file  = Channel.value(no_file)
+        ch_annotation_coverage_file = Channel.value(no_file)
     }
 
     // Mixed detection outputs (conditional)
@@ -771,8 +774,8 @@ workflow {
         ch_mixed_summary_file = MIXED_DETECTION_SUMMARY.out.summary_tsv
         ch_mixed_report_file  = MIXED_DETECTION_SUMMARY.out.report
     } else {
-        ch_mixed_summary_file = Channel.fromPath("${projectDir}/assets/NO_FILE", checkIfExists: false).ifEmpty(file('NO_MIXED_SUMMARY'))
-        ch_mixed_report_file  = Channel.fromPath("${projectDir}/assets/NO_FILE", checkIfExists: false).ifEmpty(file('NO_MIXED_REPORT'))
+        ch_mixed_summary_file = Channel.value(no_file)
+        ch_mixed_report_file  = Channel.value(no_file)
     }
 
     REORGANIZE(
